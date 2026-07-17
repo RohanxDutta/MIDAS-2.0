@@ -16,7 +16,7 @@ The Lite Version of MIDAS 2.0 (Metric-based Integrity and Data Assessment System
 | **Database Migrations** | Alembic | Schema versioning and migration deployment tool. |
 | **Auth** | Supabase Auth | Handles user registrations and logins (email/password). |
 | **Draft Caching** | Redis | Temporary draft state auto-saver (hosted on Redis Cloud). |
-| **Styling** | Tailwind CSS (v4) | Responsive UI design and aesthetic theme system. |
+| **Styling** | Tailwind CSS (v4) | Responsive UI design using a Clinical Slate & Soft-Glass Accents theme, featuring tactile hover transitions and scroll-suppressed card layouts. |
 | **Validation** | HTML5 & Pydantic | Client-side UI checks and Server-side Pydantic validation. |
 
 ---
@@ -56,8 +56,17 @@ The Lite Version of MIDAS 2.0 (Metric-based Integrity and Data Assessment System
 midas-2.0/
 ├── apps/
 │   ├── web/               # Next.js Frontend (Page components, Auth gate)
-│   │   ├── src/app/       # Routing layout, globals.css, forms
+│   │   ├── src/app/       # Routing layout, globals.css, state coordinator
 │   │   │   └── login/     # Standalone login page with eye password toggle
+│   │   ├── src/components/assessment/ # Refactored modular wizard components
+│   │   │   ├── Sidebar.tsx            # Left collapsable sidebar navigation
+│   │   │   ├── Stepper.tsx            # Interactive timeline & unfolding 15 domains tracker
+│   │   │   ├── DatasetBasicsForm.tsx  # Section A plain text metadata layout
+│   │   │   ├── QualityDomainForm.tsx  # Section B rubric scores & justifications
+│   │   │   ├── PrivacyCalculator.tsx  # Section C PRS-Lite risk & multiplier selectors
+│   │   │   ├── DataUploadForm.tsx     # Section D structured/unstructured file upload zone
+│   │   │   ├── ReviewForm.tsx         # Section E compiled inputs preview checklist
+│   │   │   └── SuccessView.tsx        # Success screen displaying calculated grades/scores
 │   │   ├── src/lib/       # Supabase client helpers
 │   │   └── src/middleware.ts # Server-side auth route guard middleware
 │   └── api/               # FastAPI Backend API Engine
@@ -69,10 +78,7 @@ midas-2.0/
 │       ├── seed_nodal.py  # Admin seed script for Nodal user role
 │       ├── seed_user.py   # Admin seed script for standard user role
 │       └── deploy_rls_policies.py # SQL Row-level security setup script
-```
 ├── docker/                # Containers configurations
-│   ├── api.Dockerfile
-│   └── web.Dockerfile
 ├── docker-compose.yml     # Local orchestration services
 ├── package.json           # Root workspace run scripts
 └── .env                   # Project credentials & configurations

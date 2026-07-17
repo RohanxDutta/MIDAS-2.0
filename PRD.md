@@ -6,7 +6,7 @@ This document outlines the finalized technical architecture, database schema, fo
 
 ## 1. Technical Stack
 
-*   **Frontend**: **Next.js (App Router)** + **Tailwind CSS** + **Next.js Server-side Middleware** (handles server-side session guards, public/protected route redirections, and client-side page gates).
+*   **Frontend**: **Next.js (App Router)** + **Tailwind CSS (v4)** + **Next.js Server-side Middleware** (handles server-side session guards, public/protected route redirections, and client-side page gates). Built using a modular component model (Sidebar, Stepper, and specialized Form layers) managed by a central state coordinator.
 *   **Backend**: **FastAPI (Python)** (Handles API endpoints like `POST /api/v1/submit`, database operations, Redis caching, and file validation. Enforces router-level authentication dependencies).
 *   **Database**: **Supabase PostgreSQL** via **SQLModel** ORM (managed in Python, with role-based PostgreSQL RLS policies).
 *   **Auth**: **Supabase Auth** on Next.js frontend. Sessions are synced to cookies for middleware checks. JWT tokens are verified on FastAPI at the global router level.
@@ -49,11 +49,12 @@ To scale file uploads without memory/connection bottlenecks on the server, we us
 
 ### Section B: 15 Data Quality Domains
 Each domain presents:
-1.  **Level Selection (Score 0-4)**: Five interactive clickable cards displaying the exact level descriptions from the rubric.
-2.  **Factual Description**: A text box to write details supporting the chosen level.
+1.  **Level Selection (Score 0-4)**: Five interactive clickable cards displaying the exact level descriptions from the rubric. Configured with a dynamic hover translate lift physics (`hover:-translate-y-[2px] hover:shadow-2xs`) and a soft selected border glow.
+2.  **Factual Description**: A 4-row text area to write details supporting the chosen level.
 3.  *Special Condition*: **Domain 11** contains a "Not Applicable" toggle. If flagged:
     *   Its score is ignored in calculation.
     *   The CQI-Lite score denominator changes from `60` to `56`.
+4.  **Stepper Branching**: When Section B is active, the single interactive progress timeline unfolds inline to display a horizontal sequence of 15 clickable micro-dots for non-linear domain navigation.
 
 ### Section C: PRS-Lite Calculator (Annexure I)
 *   **Step 1: Identification Risk Selection** (Choices: 0, 5, 15, 30, 50 with descriptive text).
