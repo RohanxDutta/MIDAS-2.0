@@ -31,10 +31,6 @@ export default function Home() {
   // --- AUTH STATE ---
   const [user, setUser] = useState<any>(null);
   const [authLoading, setAuthLoading] = useState(true);
-  const [authEmail, setAuthEmail] = useState('');
-  const [authPassword, setAuthPassword] = useState('');
-  const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
-  const [authError, setAuthError] = useState('');
 
   // --- FORM STATE ---
   const [step, setStep] = useState<'welcome' | 'metadata' | 'domains' | 'prs' | 'upload' | 'review' | 'success'>('welcome');
@@ -78,11 +74,17 @@ export default function Home() {
     supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
       setAuthLoading(false);
+      if (!session) {
+        window.location.href = '/login';
+      }
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
       setAuthLoading(false);
+      if (!session) {
+        window.location.href = '/login';
+      }
     });
 
     return () => subscription.unsubscribe();
@@ -91,29 +93,32 @@ export default function Home() {
   // --- RETRIEVE DRAFT (ON USER LOGIN) ---
   useEffect(() => {
     if (user && !isFormLoaded.current) {
-      fetch('/api/v1/draft', {
-        headers: { 'Authorization': `Bearer ${user.aud}` }
-      })
-      .then(res => res.json())
-      .then(data => {
-        if (data && data.dataset_title !== undefined) {
-          setDatasetTitle(data.dataset_title || '');
-          setVersionDoiHandle(data.version_doi_handle || '');
-          setSubmittingPiCustodian(data.submitting_pi_custodian || '');
-          setDateOfAssessment(data.date_of_assessment || new Date().toISOString().split('T')[0]);
-          setAssessorNameAffiliation(data.assessor_name_affiliation || '');
-          setAnswers(data.answers || answers);
-          setDomain11Na(data.domain_11_na || false);
-          setIdentificationRisk(data.identification_risk ?? 15);
-          setSensitivityMultiplier(data.sensitivity_multiplier ?? 1.5);
-          setDatasetType(data.dataset_type || 'structured');
-          setDatasetLink(data.dataset_link || '');
-          setUploadedFiles(data.uploaded_files || []);
-          isFormLoaded.current = true;
-          setDraftStatus('Draft loaded from cloud');
-        }
-      })
-      .catch(err => console.error('Error fetching draft:', err));
+      supabase.auth.getSession().then(({ data: { session } }) => {
+        if (!session) return;
+        fetch('/api/v1/draft', {
+          headers: { 'Authorization': `Bearer ${session.access_token}` }
+        })
+        .then(res => res.json())
+        .then(data => {
+          if (data && data.dataset_title !== undefined) {
+            setDatasetTitle(data.dataset_title || '');
+            setVersionDoiHandle(data.version_doi_handle || '');
+            setSubmittingPiCustodian(data.submitting_pi_custodian || '');
+            setDateOfAssessment(data.date_of_assessment || new Date().toISOString().split('T')[0]);
+            setAssessorNameAffiliation(data.assessor_name_affiliation || '');
+            setAnswers(data.answers || answers);
+            setDomain11Na(data.domain_11_na || false);
+            setIdentificationRisk(data.identification_risk ?? 15);
+            setSensitivityMultiplier(data.sensitivity_multiplier ?? 1.5);
+            setDatasetType(data.dataset_type || 'structured');
+            setDatasetLink(data.dataset_link || '');
+            setUploadedFiles(data.uploaded_files || []);
+            isFormLoaded.current = true;
+            setDraftStatus('Draft loaded from cloud');
+          }
+        })
+        .catch(err => console.error('Error fetching draft:', err));
+      });
     }
   }, [user]);
 
@@ -207,38 +212,12 @@ export default function Home() {
   };
 
   // --- AUTHENTICATION FLOWS ---
-  const handleAuth = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setAuthError('');
-    setAuthLoading(true);
-
-    try {
-      if (authMode === 'login') {
-        const { error } = await supabase.auth.signInWithPassword({
-          email: authEmail,
-          password: authPassword
-        });
-        if (error) throw error;
-      } else {
-        const { error } = await supabase.auth.signUp({
-          email: authEmail,
-          password: authPassword
-        });
-        if (error) throw error;
-        alert('Verification email sent! Please check your inbox.');
-      }
-    } catch (err: any) {
-      setAuthError(err.message || 'Authentication error occurred.');
-    } finally {
-      setAuthLoading(false);
-    }
-  };
-
   const handleLogout = async () => {
     await supabase.auth.signOut();
     setUser(null);
     setStep('welcome');
     isFormLoaded.current = false;
+    window.location.href = '/login';
   };
 
   // --- FILE UPLOAD FLOW ---
@@ -409,86 +388,11 @@ export default function Home() {
 
   // --- RENDERING HANDLERS ---
 
-  if (authLoading) {
+  if (authLoading || !user) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center bg-slate-950 text-slate-100 min-h-screen">
         <Loader2 className="w-10 h-10 animate-spin text-indigo-500 mb-4" />
         <p className="text-slate-400 font-medium">Loading session...</p>
-      </div>
-    );
-  }
-
-  // Auth gate
-  if (!user) {
-    return (
-      <div className="flex-1 flex flex-col items-center justify-center bg-slate-950 text-slate-100 min-h-screen px-6 py-12 relative overflow-hidden">
-        {/* Glow Effects */}
-        <div className="absolute top-1/4 left-1/4 w-96 h-96 bg-indigo-500/10 rounded-full blur-[120px] pointer-events-none" />
-        <div className="absolute bottom-1/4 right-1/4 w-96 h-96 bg-purple-500/10 rounded-full blur-[120px] pointer-events-none" />
-
-        <div className="w-full max-w-md bg-slate-900/60 border border-slate-800 backdrop-blur-xl rounded-2xl p-8 shadow-2xl relative z-10">
-          <div className="text-center mb-8">
-            <h1 className="text-3xl font-extrabold tracking-tight bg-gradient-to-r from-indigo-400 to-purple-400 bg-clip-text text-transparent">
-              ICMR MIDAS 2.0
-            </h1>
-            <p className="text-slate-400 text-sm mt-2">
-              Dataset Quality and Trust Framework (Lite Version)
-            </p>
-          </div>
-
-          <form onSubmit={handleAuth} className="space-y-6">
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
-                Email Address
-              </label>
-              <input
-                type="email"
-                required
-                value={authEmail}
-                onChange={e => setAuthEmail(e.target.value)}
-                placeholder="Enter your email"
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-indigo-500 transition-colors placeholder-slate-600"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
-                Password
-              </label>
-              <input
-                type="password"
-                required
-                value={authPassword}
-                onChange={e => setAuthPassword(e.target.value)}
-                placeholder="••••••••"
-                className="w-full bg-slate-950 border border-slate-800 rounded-lg px-4 py-3 text-sm focus:outline-none focus:border-indigo-500 transition-colors placeholder-slate-600"
-              />
-            </div>
-
-            {authError && (
-              <div className="flex gap-2 bg-red-950/40 border border-red-900 rounded-lg p-3 text-xs text-red-400">
-                <AlertCircle className="w-4 h-4 shrink-0" />
-                <span>{authError}</span>
-              </div>
-            )}
-
-            <button
-              type="submit"
-              className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-semibold py-3 rounded-lg shadow-lg shadow-indigo-500/20 transform hover:-translate-y-[1px] active:translate-y-0 transition-all flex items-center justify-center"
-            >
-              {authMode === 'login' ? 'Sign In' : 'Sign Up'}
-            </button>
-          </form>
-
-          <div className="text-center mt-6">
-            <button
-              onClick={() => setAuthMode(prev => prev === 'login' ? 'signup' : 'login')}
-              className="text-xs text-indigo-400 hover:text-indigo-300 font-medium underline"
-            >
-              {authMode === 'login' ? 'Create a new account' : 'Already have an account? Sign In'}
-            </button>
-          </div>
-        </div>
       </div>
     );
   }
