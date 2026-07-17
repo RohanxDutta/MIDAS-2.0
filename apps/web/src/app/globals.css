@@ -10,6 +10,15 @@
   --color-foreground: var(--foreground);
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
+  
+  --color-brand-navy: #0A2540;
+  --color-brand-navy-hover: #12355C;
+  --color-brand-blue: #0C59CF;
+  --color-brand-blue-hover: #0a4bb0;
+  --color-brand-slate: #6B7A90;
+  --color-brand-border: #DCE3EB;
+  --color-brand-bg-start: #F5F8FA;
+  --color-brand-bg-end: #E9EFF5;
 }
 
 body {
