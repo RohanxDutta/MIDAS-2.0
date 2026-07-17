@@ -118,8 +118,61 @@ def main():
                 $$;
             """))
 
+            # 6. Configure Storage Policies on storage.objects
+            print("6. Configuring Storage Row-Level Security policies on storage.objects...")
+            
+            conn.execute(text("DROP POLICY IF EXISTS storage_private_select_policy ON storage.objects;"))
+            conn.execute(text("""
+                CREATE POLICY storage_private_select_policy ON storage.objects
+                FOR SELECT
+                TO authenticated
+                USING (
+                    bucket_id = 'private' AND (
+                        name LIKE 'evidence/' || auth.uid()::text || '/%' OR
+                        auth.jwt() ->> 'email' = 'nodal@gmail.com'
+                    )
+                );
+            """))
+
+            conn.execute(text("DROP POLICY IF EXISTS storage_private_insert_policy ON storage.objects;"))
+            conn.execute(text("""
+                CREATE POLICY storage_private_insert_policy ON storage.objects
+                FOR INSERT
+                TO authenticated
+                WITH CHECK (
+                    bucket_id = 'private' AND
+                    name LIKE 'evidence/' || auth.uid()::text || '/%'
+                );
+            """))
+
+            conn.execute(text("DROP POLICY IF EXISTS storage_private_update_policy ON storage.objects;"))
+            conn.execute(text("""
+                CREATE POLICY storage_private_update_policy ON storage.objects
+                FOR UPDATE
+                TO authenticated
+                USING (
+                    bucket_id = 'private' AND
+                    name LIKE 'evidence/' || auth.uid()::text || '/%'
+                )
+                WITH CHECK (
+                    bucket_id = 'private' AND
+                    name LIKE 'evidence/' || auth.uid()::text || '/%'
+                );
+            """))
+
+            conn.execute(text("DROP POLICY IF EXISTS storage_private_delete_policy ON storage.objects;"))
+            conn.execute(text("""
+                CREATE POLICY storage_private_delete_policy ON storage.objects
+                FOR DELETE
+                TO authenticated
+                USING (
+                    bucket_id = 'private' AND
+                    name LIKE 'evidence/' || auth.uid()::text || '/%'
+                );
+            """))
+
             trans.commit()
-            print("\nSupabase storage bucket, webhooks, and realtime settings configured successfully!")
+            print("\nSupabase storage bucket, webhooks, realtime settings, and storage RLS configured successfully!")
         except Exception as e:
             trans.rollback()
             print(f"\nError: Database configuration failed: {e}")
