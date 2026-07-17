@@ -15,10 +15,23 @@ from models.file import AssessmentFile
 # Security & Utilities
 from core.db import get_session
 from core.redis import redis_drafts
-from core.security import get_current_user_id
+from core.security import get_current_user_id, get_current_user, CurrentUser
 from core.config import settings
 
-router = APIRouter(prefix="/api/v1")
+# Create main APIRouter (for inclusion in main app)
+router = APIRouter()
+
+# Public router
+public_router = APIRouter(prefix="/api/v1")
+
+# Protected router requiring authorization
+protected_router = APIRouter(
+    prefix="/api/v1",
+    dependencies=[Depends(get_current_user_id)]
+)
+
+router.include_router(public_router)
+router.include_router(protected_router)
 
 # --- PYDANTIC SCHEMAS FOR VALIDATION ---
 
@@ -54,7 +67,7 @@ class UploadUrlInput(BaseModel):
 
 # --- API ENDPOINTS ---
 
-@router.post("/draft")
+@protected_router.post("/draft")
 def save_draft(payload: Dict[str, Any], user_id: str = Depends(get_current_user_id)):
     """Saves the current draft form input data to Redis, keyed by user_id."""
     success = redis_drafts.save_draft(user_id, payload)
@@ -66,7 +79,7 @@ def save_draft(payload: Dict[str, Any], user_id: str = Depends(get_current_user_
     return {"status": "success", "message": "Draft saved"}
 
 
-@router.get("/draft")
+@protected_router.get("/draft")
 def get_draft(user_id: str = Depends(get_current_user_id)):
     """Retrieves the user's active draft form input from Redis."""
     draft = redis_drafts.get_draft(user_id)
@@ -75,7 +88,7 @@ def get_draft(user_id: str = Depends(get_current_user_id)):
     return draft
 
 
-@router.post("/upload-url")
+@protected_router.post("/upload-url")
 def get_presigned_url(payload: UploadUrlInput, user_id: str = Depends(get_current_user_id), db: Session = Depends(get_session)):
     """Generates a Supabase Storage presigned URL for direct client PUT upload."""
     if not payload.file_name.lower().endswith(".csv"):
@@ -135,11 +148,16 @@ def get_presigned_url(payload: UploadUrlInput, user_id: str = Depends(get_curren
         raise HTTPException(status_code=500, detail=f"Error generating presigned URL: {str(e)}")
 
 
-@router.post("/webhooks/storage")
-def handle_storage_webhook(payload: Dict[str, Any], db: Session = Depends(get_session)):
+@public_router.post("/webhooks/storage")
+def handle_storage_webhook(payload: Dict[str, Any], x_webhook_secret: Optional[str] = Header(None), db: Session = Depends(get_session)):
     """Supabase DB trigger webhook firing on insert to storage.objects.
     Validates CSV file constraints asynchronously.
     """
+    if not x_webhook_secret or x_webhook_secret != settings.WEBHOOK_SECRET:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Unauthorized webhook source"
+        )
     # Extract file metadata
     record = payload.get("record", {})
     bucket_id = record.get("bucket_id")
@@ -182,7 +200,7 @@ def handle_storage_webhook(payload: Dict[str, Any], db: Session = Depends(get_se
     return {"status": "completed", "file_id": file_uuid, "validation": db_file.status}
 
 
-@router.post("/submit")
+@protected_router.post("/submit")
 def submit_assessment(payload: SubmitInput, user_id: str = Depends(get_current_user_id), db: Session = Depends(get_session)):
     """Calculates Quality and Privacy indices, saves submission permanently to PostgreSQL, and clears draft."""
     
@@ -314,3 +332,22 @@ def submit_assessment(payload: SubmitInput, user_id: str = Depends(get_current_u
         "prs_band": prs_band,
         "release_category": release_category
     }
+
+
+@protected_router.get("/assessments", response_model=List[Dict[str, Any]])
+def get_assessments(
+    current_user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_session)
+):
+    """Role-aware endpoint.
+    - Nodal users receive a list of all assessments in the system.
+    - Standard users only receive their own assessments.
+    """
+    if current_user.role == "nodal":
+        statements = select(Assessment)
+    else:
+        statements = select(Assessment).where(Assessment.user_id == UUID(current_user.id))
+    
+    results = db.exec(statements).all()
+    # Serialize SQLModel instances to dicts
+    return [r.dict() for r in results]

@@ -11,6 +11,7 @@ class Settings(BaseSettings):
     REDIS_PASSWORD: str = os.getenv("REDIS_PASSWORD", "")
     
     DATABASE_URL: str = os.getenv("DATABASE_URL", "postgresql://postgres:postgres@localhost:5432/postgres")
+    WEBHOOK_SECRET: str = os.getenv("WEBHOOK_SECRET", "")
 
     class Config:
         env_file = ".env"
