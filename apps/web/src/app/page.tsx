@@ -1228,7 +1228,7 @@ export default function Home() {
       )}
 
       {/* SUCCESS PAGE: READ-ONLY REPORT */}
-      {step === 'completed' || step === 'success' && submissionResult && (
+      {step === 'success' && submissionResult && (
         <div className="flex-1 flex flex-col items-center justify-center max-w-3xl mx-auto px-6 py-12 text-center relative z-10 w-full animate-fade-in">
           <div className="w-16 h-16 bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 rounded-full flex items-center justify-center mb-6">
             <FileCheck className="w-8 h-8" />

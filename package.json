@@ -8,6 +8,7 @@
   "scripts": {
     "dev:web": "npm run dev --workspace=apps/web",
     "dev:api": "cd apps/api && uvicorn app.main:app --reload",
+    "tunnel": "ngrok http 8000",
     "docker:up": "docker-compose up -d",
     "docker:down": "docker-compose down"
   }
