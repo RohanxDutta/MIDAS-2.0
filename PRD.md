@@ -6,10 +6,10 @@ This document outlines the finalized technical architecture, database schema, fo
 
 ## 1. Technical Stack
 
-*   **Frontend**: **Next.js (App Router)** + **Tailwind CSS** (UI, client-side routing, and Supabase Auth session management).
-*   **Backend**: **FastAPI (Python)** (Handles API endpoints like `POST /api/v1/submit`, database operations, Redis caching, and file validation).
-*   **Database**: **Supabase PostgreSQL** via **SQLModel** ORM (managed in Python).
-*   **Auth**: **Supabase Auth** on Next.js frontend. The JWT token is passed in the header to FastAPI, which verifies it.
+*   **Frontend**: **Next.js (App Router)** + **Tailwind CSS** + **Next.js Server-side Middleware** (handles server-side session guards, public/protected route redirections, and client-side page gates).
+*   **Backend**: **FastAPI (Python)** (Handles API endpoints like `POST /api/v1/submit`, database operations, Redis caching, and file validation. Enforces router-level authentication dependencies).
+*   **Database**: **Supabase PostgreSQL** via **SQLModel** ORM (managed in Python, with role-based PostgreSQL RLS policies).
+*   **Auth**: **Supabase Auth** on Next.js frontend. Sessions are synced to cookies for middleware checks. JWT tokens are verified on FastAPI at the global router level.
 *   **Draft Caching**: **Redis (hosted on Redis Cloud)**, accessed strictly via the FastAPI backend (`redis-py`).
 *   **Validation**: **HTML5 / UI State Checks** (frontend validation) and **Pydantic/SQLModel** (backend validation).
 
@@ -31,8 +31,8 @@ To scale file uploads without memory/connection bottlenecks on the server, we us
 1.  **Request Upload**: Browser asks FastAPI (`GET /api/v1/upload-url`) for a signed upload URL.
 2.  **Generate URL**: FastAPI requests Supabase Storage for a Presigned PUT URL and returns it to the browser.
 3.  **Direct Upload**: Browser uploads the CSV file directly to Supabase Storage via `PUT`.
-4.  **Asynchronous Webhook**: Supabase PostgreSQL database fires a trigger (via the `pg_net` extension) to send a `POST` request directly to the FastAPI Webhook endpoint (`/api/v1/webhooks/storage`) when the file is successfully uploaded to `storage.objects`.
-5.  **Validate**: FastAPI checks the uploaded file in Storage (validating that the extension is `.csv` and it is not empty) and updates the status of the file record.
+4.  **Asynchronous Webhook**: Supabase PostgreSQL database fires a trigger (via the `pg_net` extension) to send a `POST` request directly to the FastAPI Webhook endpoint (`/api/v1/webhooks/storage`) when the file is successfully uploaded to `storage.objects`. The request is secured with a shared `WEBHOOK_SECRET` passed in the `x-webhook-secret` header.
+5.  **Validate**: FastAPI validates the webhook header secret, checks the uploaded file in Storage (validating that the extension is `.csv` and it is not empty), and updates the status of the file record.
 6.  **Real-Time Update**: The Next.js frontend listens to changes in `assessment_files` via **Supabase Realtime Subscriptions** to instantly show the validation status (success checkmark or empty-file error) to the user.
     *   *Setup Automation*: The realtime publication subscription, storage bucket registration, trigger functions, and webhook setup are executed programmatically via `setup_supabase_extras.py`.
 
@@ -120,10 +120,10 @@ erDiagram
 ## 6. Form Lifecycle & Security
 
 1.  **Draft State (Redis via FastAPI)**:
-    *   As the user fills out the form, Next.js calls a FastAPI endpoint (`POST /api/v1/draft`) to save the in-progress draft to Redis, keyed by the user's `user_id`.
+    *   As the user fills out the form, Next.js calls a FastAPI endpoint (`POST /api/v1/draft`) to save the in-progress draft to Redis, keyed by the user's `user_id`. The request includes the client session JWT verified globally at the router level.
     *   Drafts persist temporarily in Redis until either the cache is cleared manually or the form is finalized and submitted.
 2.  **Submission (PostgreSQL via FastAPI)**:
-    *   Upon clicking "Submit", Next.js calls the FastAPI submit endpoint (`POST /api/v1/submit`).
+    *   Upon clicking "Submit", Next.js calls the FastAPI submit endpoint (`POST /api/v1/submit`) with the session JWT.
     *   FastAPI runs final validation checks and performs backend calculations:
         *   **CQI-Lite Score & Grade**: `(Sum of Domain Scores / Max Score) * 100` and maps to grade (Diamond, Platinum, etc.). Max score is `56` if Domain 11 is NA, otherwise `60`.
         *   **PRS-Lite Score & Risk Band**: `round(Identification Risk * Multiplier)` capped at 100, and maps to band (Low, Moderate, etc.).
@@ -132,7 +132,10 @@ erDiagram
     *   FastAPI writes the finalized data permanently to PostgreSQL, associates the file records, and deletes the draft from Redis.
     *   Submitted assessments become read-only.
 3.  **Privacy & Access Control (Row-Level Security)**:
+    *   **Route Guards**: Server-side Next.js middleware validates cookies and redirects unauthenticated traffic trying to access `/` back to `/login`. A client-side fallback handles instant redirect when user session terminates.
     *   **Submitting User**: Can fill forms, view drafts, and view/edit/delete their own final submissions. Secured via database Row-Level Security (RLS) check: `auth.uid() = user_id`.
-    *   **Nodal Team**: A seeded account (`nodal@gmail.com` / `test123`) has full read access to all submissions and uploaded files in the system (`auth.jwt() ->> 'email' = 'nodal@gmail.com'`).
-    *   **Evidence Files (CSVs)**: Uploaded to a private Supabase Storage Bucket, secured with Row Level Security (RLS) so only the creator (under directory `evidence/auth.uid()/`) and the Nodal Team can download them.
-    *   **Database Tables Security**: RLS is enabled on `assessments`, `assessment_answers`, and `assessment_files` to prevent cross-tenant data access, matching ownership constraints programmatically.
+    *   **Nodal Team / Administrator Role**: Access is checked via dynamic claims verification: `auth.jwt() -> 'user_metadata' ->> 'role' = 'nodal'`. This dynamic mapping allows adding multiple nodal team accounts without database schema updates.
+    *   **Backend Stateless Role Checks**: The FastAPI security engine extracts the user's role claim directly from the decrypted JWT payload (`user_metadata -> role`). Endpoints can enforce permissions in-memory via `require_nodal` dependencies without making extra database queries.
+    *   **Role-Aware Query Routing**: The list assessments endpoint (`GET /api/v1/assessments`) uses `Depends(get_current_user)` to inspect the role claim. It dynamically exposes all records to `nodal` users while automatically restricting standard users to their own assessments.
+    *   **Evidence Files (CSVs)**: Uploaded to a private Supabase Storage Bucket, secured with Row Level Security (RLS) so only the creator (under folder `evidence/auth.uid()/`) and the Nodal Team can download them, evaluated via dynamic role metadata claims.
+    *   **Database Tables Security**: RLS is enabled on `assessments`, `assessment_answers`, and `assessment_files` to prevent cross-tenant data access, checking ownership and role properties.

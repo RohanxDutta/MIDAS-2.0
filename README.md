@@ -57,15 +57,19 @@ midas-2.0/
 ├── apps/
 │   ├── web/               # Next.js Frontend (Page components, Auth gate)
 │   │   ├── src/app/       # Routing layout, globals.css, forms
-│   │   └── src/lib/       # Supabase client helpers
+│   │   │   └── login/     # Standalone login page with eye password toggle
+│   │   ├── src/lib/       # Supabase client helpers
+│   │   └── src/middleware.ts # Server-side auth route guard middleware
 │   └── api/               # FastAPI Backend API Engine
 │       └── app/           # Core config, Redis client, endpoints
 ├── packages/
 │   └── database/          # Shared SQLModel schemas & Alembic migrations
 │       ├── alembic/       # Version scripts directory
 │       ├── models/        # Assessments, Answers, and Files models
-│       ├── seed_nodal.py  # Admin seed script for Nodal user
+│       ├── seed_nodal.py  # Admin seed script for Nodal user role
+│       ├── seed_user.py   # Admin seed script for standard user role
 │       └── deploy_rls_policies.py # SQL Row-level security setup script
+```
 ├── docker/                # Containers configurations
 │   ├── api.Dockerfile
 │   └── web.Dockerfile
@@ -89,7 +93,11 @@ midas-2.0/
    ```bash
    cp .env.example .env
    ```
-3. Open `.env` and fill in your Supabase project keys (URL, Anon key, Service role, JWT secret, and database Session Pooler URL) and your Redis Cloud credentials.
+3. Open `.env` and fill in your Supabase project keys (URL, Anon key, Service role, JWT secret, and database Session Pooler URL) and your Redis Cloud credentials. Add a random string as the `WEBHOOK_SECRET` variable for webhook trigger validation.
+4. Copy the environment file into the Next.js web application so the browser client and server-side middleware can read the configuration:
+   ```bash
+   cp .env apps/web/.env
+   ```
 
 ---
 
@@ -112,7 +120,11 @@ midas-2.0/
    ```bash
    python packages/database/seed_nodal.py
    ```
-5. Deploy Row-Level Security policies on SQL tables:
+5. Provision the Standard Custodian test account:
+   ```bash
+   python packages/database/seed_user.py
+   ```
+6. Deploy Row-Level Security policies on SQL tables:
    ```bash
    python packages/database/deploy_rls_policies.py
    ```
@@ -155,4 +167,38 @@ To run the full stack locally from the root workspace directory, run these scrip
     npm run dev:web
     ```
 
-Once loaded, navigate your browser to `http://localhost:3000`. Log in with your assessment credentials or the Nodal Team account (`nodal@gmail.com` / `test123`).
+Once loaded, navigate your browser to `http://localhost:3000`. The server middleware will redirect you to the `/login` route. Sign in with either your standard custodian credentials (`user@gmail.com` / `test123`) or the Nodal Team account (`nodal@gmail.com` / `test123`). Note that manual signup has been disabled for safety.
+
+---
+
+## 8. Backend Role Authorization Guidelines (Developer Guide)
+
+When writing new FastAPI endpoints in `endpoints.py`, follow these dependency-injection patterns to manage user authentication and role validation:
+
+1. **Retrieve only the User ID (Standard Auth)**:
+   If the route only needs to query/write rows owned by the current user:
+   ```python
+   @protected_router.get("/my-endpoint")
+   def get_data(user_id: str = Depends(get_current_user_id)):
+       # user_id is the string UUID parsed from the JWT
+       ...
+   ```
+
+2. **Retrieve User ID & Role (Role-Aware Querying)**:
+   If the endpoint behaves differently depending on user roles (e.g. nodal lists all, standard lists own):
+   ```python
+   @protected_router.get("/assessments")
+   def get_assessments(current_user: CurrentUser = Depends(get_current_user)):
+       # current_user.id provides the UUID string
+       # current_user.role provides the role claim ('user', 'nodal', etc.)
+       if current_user.role == "nodal":
+           ...
+   ```
+
+3. **Restrict Route to Nodal Users Only (Strict RBAC)**:
+   If the endpoint should be locked down entirely so that only Nodal accounts can query it:
+   ```python
+   @protected_router.get("/admin-settings", dependencies=[Depends(require_nodal)])
+   def get_settings():
+       ...
+   ```
