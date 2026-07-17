@@ -11,7 +11,7 @@ This document outlines the finalized technical architecture, database schema, fo
 *   **Database**: **Supabase PostgreSQL** via **SQLModel** ORM (managed in Python).
 *   **Auth**: **Supabase Auth** on Next.js frontend. The JWT token is passed in the header to FastAPI, which verifies it.
 *   **Draft Caching**: **Redis (hosted on Redis Cloud)**, accessed strictly via the FastAPI backend (`redis-py`).
-*   **Validation**: **Zod** (frontend validation) and **Pydantic/SQLModel** (backend validation).
+*   **Validation**: **HTML5 / UI State Checks** (frontend validation) and **Pydantic/SQLModel** (backend validation).
 
 ---
 
@@ -34,10 +34,7 @@ To scale file uploads without memory/connection bottlenecks on the server, we us
 4.  **Asynchronous Webhook**: Supabase PostgreSQL database fires a trigger (via the `pg_net` extension) to send a `POST` request directly to the FastAPI Webhook endpoint (`/api/v1/webhooks/storage`) when the file is successfully uploaded to `storage.objects`.
 5.  **Validate**: FastAPI checks the uploaded file in Storage (validating that the extension is `.csv` and it is not empty) and updates the status of the file record.
 6.  **Real-Time Update**: The Next.js frontend listens to changes in `assessment_files` via **Supabase Realtime Subscriptions** to instantly show the validation status (success checkmark or empty-file error) to the user.
-    *   *Required Migration*: 
-        ```sql
-        ALTER PUBLICATION supabase_realtime ADD TABLE assessment_files;
-        ```
+    *   *Setup Automation*: The realtime publication subscription, storage bucket registration, trigger functions, and webhook setup are executed programmatically via `setup_supabase_extras.py`.
 
 ---
 
@@ -134,7 +131,8 @@ erDiagram
     *   Scores and category are saved directly into the `assessments` table but **not** displayed on the user's frontend.
     *   FastAPI writes the finalized data permanently to PostgreSQL, associates the file records, and deletes the draft from Redis.
     *   Submitted assessments become read-only.
-3.  **Privacy & Access Control**:
-    *   **Submitting User**: Can fill forms, view drafts, and preview/view their own final submissions.
-    *   **Nodal Team**: Has full read access to all submissions and uploaded files.
-    *   **Evidence Files (CSVs)**: Uploaded to a private Supabase Storage Bucket, secured with Row Level Security (RLS) so only the creator and the Nodal Team can download them.
+3.  **Privacy & Access Control (Row-Level Security)**:
+    *   **Submitting User**: Can fill forms, view drafts, and view/edit/delete their own final submissions. Secured via database Row-Level Security (RLS) check: `auth.uid() = user_id`.
+    *   **Nodal Team**: A seeded account (`nodal@gmail.com` / `test123`) has full read access to all submissions and uploaded files in the system (`auth.jwt() ->> 'email' = 'nodal@gmail.com'`).
+    *   **Evidence Files (CSVs)**: Uploaded to a private Supabase Storage Bucket, secured with Row Level Security (RLS) so only the creator (under directory `evidence/auth.uid()/`) and the Nodal Team can download them.
+    *   **Database Tables Security**: RLS is enabled on `assessments`, `assessment_answers`, and `assessment_files` to prevent cross-tenant data access, matching ownership constraints programmatically.
