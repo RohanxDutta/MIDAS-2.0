@@ -22,7 +22,7 @@ def load_env():
             val = val.strip().strip('"').strip("'")
             os.environ[key.strip()] = val
 
-def seed_nodal_user():
+def seed_standard_user():
     load_env()
     
     supabase_url = os.getenv("NEXT_PUBLIC_SUPABASE_URL")
@@ -39,60 +39,39 @@ def seed_nodal_user():
         "Content-Type": "application/json"
     }
     
-    # We want to create the nodal user
     user_payload = {
-        "email": "nodal@gmail.com",
+        "email": "user@gmail.com",
         "password": "test123",
         "email_confirm": True, # Bypasses email validation link confirmation
         "user_metadata": {
-            "role": "nodal" # Add metadata just in case, though we check email in RLS policies
+            "role": "user"
         }
     }
     
-    print(f"Checking if user 'nodal@gmail.com' already exists...")
+    print("Checking if user 'user@gmail.com' already exists...")
     
-    # First, list users to see if it exists
-    # The Admin API supports listing users
     try:
         response = requests.get(admin_users_url, headers=headers)
         if response.status_code == 200:
             users_list = response.json()
-            # If it's a list or a dict containing 'users'
             users = users_list.get("users", []) if isinstance(users_list, dict) else users_list
             for user in users:
-                if user.get("email") == "nodal@gmail.com":
-                    print("User 'nodal@gmail.com' already exists. Ensuring metadata role is 'nodal'...")
-                    user_id = user.get("id")
-                    update_url = f"{admin_users_url}/{user_id}"
-                    update_payload = {
-                        "user_metadata": {
-                            "role": "nodal"
-                        }
-                    }
-                    update_resp = requests.put(update_url, json=update_payload, headers=headers)
-                    if update_resp.status_code == 200:
-                        print("Success: Metadata role updated to 'nodal'.")
-                    else:
-                        print(f"Warning: Failed to update metadata role: {update_resp.text}")
+                if user.get("email") == "user@gmail.com":
+                    print("User 'user@gmail.com' already exists. Skipping creation.")
                     return
-        elif response.status_code == 404:
-            # Listing might not be supported or restricted, we will proceed directly to create and catch conflict
-            pass
-        else:
-            print(f"Warning: Failed to list users ({response.status_code}): {response.text}")
     except Exception as e:
         print(f"Warning: Error listing users: {e}")
 
-    print(f"Creating user 'nodal@gmail.com' with admin API...")
+    print("Creating user 'user@gmail.com' with admin API...")
     response = requests.post(admin_users_url, json=user_payload, headers=headers)
     
     if response.status_code in [200, 201]:
-        print("Success: Nodal Team user (nodal@gmail.com) created and confirmed.")
+        print("Success: Standard User (user@gmail.com) created and confirmed.")
     elif response.status_code == 400 and "already exists" in response.text.lower():
-        print("User 'nodal@gmail.com' already exists. Skipping creation.")
+        print("User 'user@gmail.com' already exists. Skipping creation.")
     else:
         print(f"Error creating user ({response.status_code}): {response.text}")
         sys.exit(1)
 
 if __name__ == "__main__":
-    seed_nodal_user()
+    seed_standard_user()

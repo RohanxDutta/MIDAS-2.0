@@ -51,7 +51,7 @@ def main():
                 FOR SELECT
                 USING (
                     auth.uid() = user_id OR 
-                    auth.jwt() ->> 'email' = 'nodal@gmail.com'
+                    auth.jwt() -> 'user_metadata' ->> 'role' = 'nodal'
                 );
             """))
             
@@ -92,7 +92,7 @@ def main():
                 CREATE POLICY answers_all_policy ON assessment_answers
                 FOR ALL
                 USING (
-                    auth.jwt() ->> 'email' = 'nodal@gmail.com' OR
+                    auth.jwt() -> 'user_metadata' ->> 'role' = 'nodal' OR
                     EXISTS (
                         SELECT 1 FROM assessments 
                         WHERE assessments.id = assessment_answers.assessment_id 
@@ -108,7 +108,7 @@ def main():
                 CREATE POLICY files_all_policy ON assessment_files
                 FOR ALL
                 USING (
-                    auth.jwt() ->> 'email' = 'nodal@gmail.com' OR
+                    auth.jwt() -> 'user_metadata' ->> 'role' = 'nodal' OR
                     (assessment_id = '00000000-0000-0000-0000-000000000000'::uuid AND split_part(storage_path, '/', 2)::uuid = auth.uid()) OR
                     EXISTS (
                         SELECT 1 FROM assessments 

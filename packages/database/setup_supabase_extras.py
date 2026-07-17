@@ -44,6 +44,12 @@ def main():
     else:
         print(f"Deploying storage trigger webhook pointing to: {webhook_url}")
 
+    # Read WEBHOOK_SECRET
+    webhook_secret = os.getenv("WEBHOOK_SECRET")
+    if not webhook_secret:
+        print("Error: WEBHOOK_SECRET not set in .env")
+        sys.exit(1)
+
     engine = create_engine(db_url)
     
     with engine.connect() as conn:
@@ -82,7 +88,7 @@ def main():
                     PERFORM net.http_post(
                         '{webhook_url}',
                         payload::text,
-                        '{{"Content-Type": "application/json"}}'::text
+                        '{{"Content-Type": "application/json", "x-webhook-secret": "{webhook_secret}"}}'::text
                     );
                     RETURN NEW;
                 END;
@@ -129,7 +135,7 @@ def main():
                 USING (
                     bucket_id = 'private' AND (
                         name LIKE 'evidence/' || auth.uid()::text || '/%' OR
-                        auth.jwt() ->> 'email' = 'nodal@gmail.com'
+                        auth.jwt() -> 'user_metadata' ->> 'role' = 'nodal'
                     )
                 );
             """))
