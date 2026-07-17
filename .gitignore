@@ -1,0 +1,84 @@
+# --- SENSITIVE DATA & CREDENTIALS ---
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.pem
+*.key
+
+# --- PYTHON BUILD & RUNTIME ---
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# --- PYTHON VIRTUAL ENVIRONMENTS ---
+.venv
+venv
+ENV
+env/
+.env/
+ENV/
+
+# --- NODEJS & NEXTJS BUILD ---
+node_modules/
+out/
+.next/
+.pnp
+.pnp.js
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+
+# --- TESTING & COVERAGE ---
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+.htmlcov/
+.tox/
+.nosenv/
+.pytest_cache/
+.playwright/
+.playwright-mcp/
+
+# --- LOCAL DATABASE FILE CACHES ---
+*.db
+*.sqlite
+*.sqlite3
+
+# --- SYSTEM & IDE CONFIGURATIONS ---
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+*.sublime-project
+*.sublime-workspace
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?

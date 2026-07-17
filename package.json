@@ -1,0 +1,14 @@
+{
+  "name": "midas-lite-monorepo",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/web"
+  ],
+  "scripts": {
+    "dev:web": "npm run dev --workspace=apps/web",
+    "dev:api": "cd apps/api && uvicorn app.main:app --reload",
+    "docker:up": "docker-compose up -d",
+    "docker:down": "docker-compose down"
+  }
+}
