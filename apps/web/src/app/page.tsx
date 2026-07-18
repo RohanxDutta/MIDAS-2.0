@@ -14,6 +14,7 @@ import { PrivacyCalculator } from '@/components/assessment/PrivacyCalculator';
 import { DataUploadForm } from '@/components/assessment/DataUploadForm';
 import { ReviewForm } from '@/components/assessment/ReviewForm';
 import { SuccessView } from '@/components/assessment/SuccessView';
+import { LandingPage } from '@/components/assessment/LandingPage';
 
 interface FileUpload {
   id: string;
@@ -28,7 +29,6 @@ export default function Home() {
   const [authLoading, setAuthLoading] = useState(true);
   const [authEmail, setAuthEmail] = useState('');
   const [authPassword, setAuthPassword] = useState('');
-  const [authMode, setAuthMode] = useState<'login' | 'signup'>('login');
   const [authError, setAuthError] = useState('');
 
   // --- LAYOUT STATE ---
@@ -219,20 +219,11 @@ export default function Home() {
     setAuthLoading(true);
 
     try {
-      if (authMode === 'login') {
-        const { error } = await supabase.auth.signInWithPassword({
-          email: authEmail,
-          password: authPassword,
-        });
-        if (error) throw error;
-      } else {
-        const { error } = await supabase.auth.signUp({
-          email: authEmail,
-          password: authPassword,
-        });
-        if (error) throw error;
-        alert('Verification email sent! Please check your inbox.');
-      }
+      const { error } = await supabase.auth.signInWithPassword({
+        email: authEmail,
+        password: authPassword,
+      });
+      if (error) throw error;
     } catch (err: any) {
       setAuthError(err.message || 'Authentication error occurred.');
     } finally {
@@ -537,81 +528,11 @@ export default function Home() {
 
   // Auth gate
   if (!user) {
-    return (
-      <div className="flex-1 flex flex-col items-center justify-center bg-gradient-to-tr from-brand-bg-end to-brand-bg-start min-h-screen px-6 py-12 relative overflow-hidden select-none">
-        <div className="absolute top-8 left-8">
-          <span className="text-xl font-extrabold text-brand-navy tracking-tight">MIDAS 2.0</span>
-        </div>
-
-        <div className="w-full max-w-[480px] bg-white border border-brand-border rounded-[24px] px-10 py-12 shadow-[0_8px_30px_rgb(0,0,0,0.03)] relative z-10 flex flex-col">
-          <div className="text-center mb-8">
-            <h1 className="text-3xl font-extrabold text-brand-navy tracking-tight">
-              Welcome Back
-            </h1>
-            <p className="text-brand-slate text-sm font-medium mt-2">
-              Sign in to continue to MIDAS 2.0
-            </p>
-          </div>
-
-          <form onSubmit={handleAuth} className="space-y-6">
-            <div>
-              <label className="block text-xs font-semibold text-brand-navy mb-2 tracking-wide">
-                Email Address
-              </label>
-              <input
-                type="email"
-                required
-                value={authEmail}
-                onChange={(e) => setAuthEmail(e.target.value)}
-                placeholder="Enter your email"
-                className="w-full bg-white border border-brand-border rounded-lg py-3 px-4 text-sm text-brand-navy placeholder-brand-slate/70 focus:outline-none focus:border-brand-blue focus:ring-1 focus:ring-brand-blue transition-all"
-              />
-            </div>
-
-            <div>
-              <label className="block text-xs font-semibold text-brand-navy mb-2 tracking-wide">
-                Password
-              </label>
-              <input
-                type="password"
-                required
-                value={authPassword}
-                onChange={(e) => setAuthPassword(e.target.value)}
-                placeholder="••••••••"
-                className="w-full bg-white border border-brand-border rounded-lg py-3 px-4 text-sm text-brand-navy placeholder-brand-slate/70 focus:outline-none focus:border-brand-blue focus:ring-1 focus:ring-brand-blue transition-all"
-              />
-            </div>
-
-            {authError && (
-              <div className="flex gap-2.5 bg-red-50 border border-red-200 rounded-lg p-3.5 text-xs text-red-600 font-medium">
-                <AlertCircle className="w-4.5 h-4.5 shrink-0 text-red-500" />
-                <span>{authError}</span>
-              </div>
-            )}
-
-            <button
-              type="submit"
-              className="w-full bg-brand-navy hover:bg-brand-navy-hover text-white font-semibold py-3.5 px-4 rounded-lg transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-sm"
-            >
-              {authMode === 'login' ? 'Sign In' : 'Sign Up'}
-            </button>
-          </form>
-
-          <div className="text-center mt-6">
-            <button
-              onClick={() => setAuthMode((prev) => (prev === 'login' ? 'signup' : 'login'))}
-              className="text-xs text-brand-blue hover:underline font-semibold cursor-pointer"
-            >
-              {authMode === 'login' ? 'Create a new account' : 'Already have an account? Sign In'}
-            </button>
-          </div>
-        </div>
-      </div>
-    );
+    return <LandingPage />;
   }
 
   return (
-    <div className="flex bg-slate-50 h-screen overflow-hidden text-brand-navy">
+    <div className="flex bg-slate-50 h-screen w-screen overflow-hidden text-brand-navy">
       {/* SIDEBAR */}
       <Sidebar
         user={user}
@@ -626,7 +547,7 @@ export default function Home() {
         {/* BREATHABLE COMPACT HEADER */}
         <header className="h-20 border-b border-brand-border bg-white flex justify-between items-center px-10 shrink-0 select-none print:hidden z-30">
           <div className="flex flex-col">
-            <h1 className="text-lg font-black text-brand-navy tracking-tight leading-none">
+            <h1 className="text-lg font-serif font-black text-brand-navy tracking-tight leading-none">
               New Assessment
             </h1>
             <span className="text-xs font-semibold text-brand-slate mt-2 leading-none">
