@@ -85,3 +85,10 @@ Thumbs.db
 
 # --- GRAPHIFY GENERATED OUTPUT ---
 graphify-out/
+
+# --- DEV ARTIFACTS (OPENCODE / BROWSER DEBUG) ---
+.agents/
+*screenshot*.png
+*snapshot*.txt
+target-site-screenshot.png
+target-site-snapshot.txt
