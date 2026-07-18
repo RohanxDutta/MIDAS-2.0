@@ -8,9 +8,8 @@ export async function middleware(request: NextRequest) {
     },
   })
 
-  // Exclude auth and static assets from triggering redirection loops
+  // Exclude static assets from triggering redirection loops
   const path = request.nextUrl.pathname
-  const isAuthPage = path === '/login'
   const isStaticAsset = path.startsWith('/_next') || path.includes('.') || path === '/favicon.ico'
 
   if (isStaticAsset) {
@@ -44,12 +43,13 @@ export async function middleware(request: NextRequest) {
   )
 
   const { data: { user } } = await supabase.auth.getUser()
+  const isPublicPage = path === '/' || path === '/login'
 
-  if (!user && !isAuthPage) {
+  if (!user && !isPublicPage) {
     return NextResponse.redirect(new URL('/login', request.url))
   }
 
-  if (user && isAuthPage) {
+  if (user && path === '/login') {
     return NextResponse.redirect(new URL('/', request.url))
   }
 

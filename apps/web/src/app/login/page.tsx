@@ -46,7 +46,7 @@ export default function Login() {
   };
 
   return (
-    <div className="flex-1 flex flex-col items-center justify-center bg-gradient-to-tr from-brand-bg-end to-brand-bg-start min-h-screen px-6 py-12 relative overflow-hidden select-none">
+    <div className="h-screen w-screen overflow-hidden flex items-center justify-center bg-gradient-to-tr from-brand-bg-end to-brand-bg-start relative select-none">
       
       {/* Brand Header */}
       <div className="absolute top-8 left-8">

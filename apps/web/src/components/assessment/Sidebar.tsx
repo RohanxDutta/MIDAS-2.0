@@ -50,7 +50,7 @@ export function Sidebar({
             <div onClick={onGoHome} className="flex items-center gap-2.5 cursor-pointer">
               <BookOpen className="w-5.5 h-5.5 text-brand-blue" />
               <div className="flex flex-col">
-                <span className="text-base font-black text-brand-navy tracking-tight leading-none">
+                <span className="text-base font-serif font-black text-brand-navy tracking-tight leading-none">
                   MIDAS 2.0
                 </span>
                 <span className="text-[9px] font-bold text-brand-slate uppercase tracking-wider mt-1">
