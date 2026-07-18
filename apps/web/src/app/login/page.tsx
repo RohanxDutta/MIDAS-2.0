@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 import { AlertCircle, Loader2, Eye, EyeOff, Mail, Lock } from 'lucide-react';
@@ -15,8 +15,38 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
 
+  // Client-side rate limiting states (Fix #10)
+  const [failedAttempts, setFailedAttempts] = useState(0);
+  const [lockoutTimeLeft, setLockoutTimeLeft] = useState(0);
+
+  // Check for session errors on mount (Fix C)
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('error') === 'session_expired') {
+        setError('Your session has expired or is unauthorized. Please sign in again.');
+      }
+    }
+  }, []);
+
+  // Lockout countdown timer
+  useEffect(() => {
+    if (lockoutTimeLeft <= 0) return;
+    const interval = setInterval(() => {
+      setLockoutTimeLeft((prev) => {
+        if (prev <= 1) {
+          setFailedAttempts(0); // Reset attempts after lock lifts
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+    return () => clearInterval(interval);
+  }, [lockoutTimeLeft]);
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (lockoutTimeLeft > 0) return;
     setError('');
     setLoading(true);
 
@@ -30,15 +60,28 @@ export default function Login() {
         throw authError;
       }
 
+      // Reset spammed attempts counter on successful login
+      setFailedAttempts(0);
+      setLockoutTimeLeft(0);
+
       router.refresh();
-      router.push('/');
+      router.push('/dashboard');
     } catch (err: any) {
       console.error('Login error details:', err);
+      const newAttempts = failedAttempts + 1;
+      setFailedAttempts(newAttempts);
+
       let userFriendlyMsg = err.message || 'An unexpected error occurred.';
-      if (userFriendlyMsg.toLowerCase().includes('failed to fetch')) {
+      if (newAttempts >= 5) {
+        setLockoutTimeLeft(30);
+        userFriendlyMsg = 'Too many failed login attempts. Account temporarily locked for 30 seconds.';
+      } else if (userFriendlyMsg.toLowerCase().includes('failed to fetch')) {
         userFriendlyMsg = 'Unable to connect to the authentication server. Please check your internet connection or try again later.';
-      } else if (userFriendlyMsg.toLowerCase().includes('invalid login credentials') || userFriendlyMsg.toLowerCase().includes('invalid_credentials')) {
-        userFriendlyMsg = 'Incorrect email or password. Please check your entries and try again.';
+      } else if (
+        userFriendlyMsg.toLowerCase().includes('invalid login credentials') || 
+        userFriendlyMsg.toLowerCase().includes('invalid_credentials')
+      ) {
+        userFriendlyMsg = `Incorrect email or password. Please check your entries and try again. (Attempt ${newAttempts}/5)`;
       }
       setError(userFriendlyMsg);
       setLoading(false);
@@ -65,7 +108,7 @@ export default function Login() {
           </p>
         </div>
 
-        <form onSubmit={handleLogin} className="space-y-5">
+        <form onSubmit={handleLogin} method="POST" className="space-y-5">
           <Input
             label="Email Address"
             type="email"
@@ -74,6 +117,8 @@ export default function Login() {
             onChange={e => setEmail(e.target.value)}
             placeholder="Enter your email address"
             icon={<Mail className="w-4 h-4" />}
+            autoComplete="username"
+            disabled={lockoutTimeLeft > 0}
           />
 
           <Input
@@ -84,12 +129,15 @@ export default function Login() {
             onChange={e => setPassword(e.target.value)}
             placeholder="Enter your password"
             icon={<Lock className="w-4 h-4" />}
+            autoComplete="current-password"
+            disabled={lockoutTimeLeft > 0}
             rightAction={
               <button
                 type="button"
                 onClick={() => setShowPassword(prev => !prev)}
                 className="text-brand-slate hover:text-brand-navy transition-colors focus:outline-none cursor-pointer flex items-center justify-center"
                 title={showPassword ? 'Hide password' : 'Show password'}
+                disabled={lockoutTimeLeft > 0}
               >
                 {showPassword ? (
                   <EyeOff className="w-4.5 h-4.5" />
@@ -107,8 +155,10 @@ export default function Login() {
             </div>
           )}
 
-          <Button type="submit" loading={loading} className="mt-2">
-            {loading ? (
+          <Button type="submit" loading={loading} disabled={lockoutTimeLeft > 0} className="mt-2">
+            {lockoutTimeLeft > 0 ? (
+              `Locked out (${lockoutTimeLeft}s)`
+            ) : loading ? (
               <>
                 <Loader2 className="w-4 h-4 animate-spin mr-2" />
                 Signing In...
@@ -118,9 +168,6 @@ export default function Login() {
             )}
           </Button>
         </form>
-
-
-
       </div>
     </div>
   );

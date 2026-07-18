@@ -456,6 +456,8 @@ border-radius: 999px;
 background:
     radial-gradient(circle at top right, rgba(45, 101, 152, 0.1), transparent 32%),
     linear-gradient(180deg, #f6f9fc 0%, #f2f6fb 56%, #f7f6f1 100%);
+background-attachment: fixed;
+min-height: 100vh;
 }
 
 .portal-home-page .header.header-2 .navbar-area {
@@ -546,6 +548,8 @@ background:
     radial-gradient(circle at top right, rgba(45, 101, 152, 0.09), transparent 32%),
     radial-gradient(circle at left bottom, rgba(201, 123, 72, 0.05), transparent 26%),
     linear-gradient(180deg, #f8fbff 0%, #f3f6fb 55%, #f7f6f2 100%) !important;
+background-attachment: fixed !important;
+min-height: 100vh;
 }
 
 .portal-home-page .header.header-2 .navbar-area {
@@ -700,4 +704,261 @@ padding: 2.2rem 1.15rem 3rem;
 padding: 1.35rem !important;
 }
 
+}
+
+/* ===================== LITE VERSION DOCUMENT STYLES ===================== */
+
+.portal-home-page .document-hero {
+padding: 145px 0 70px;
+}
+
+.portal-home-page .document-hero-card {
+background: linear-gradient(135deg, #1e3557 0%, #2f80ed 100%);
+border-radius: 22px;
+padding: 42px;
+color: #ffffff;
+box-shadow: 0 28px 60px rgba(31, 52, 86, 0.18);
+border: none;
+}
+
+.portal-home-page .document-kicker {
+display: inline-flex;
+align-items: center;
+gap: 10px;
+margin-bottom: 16px;
+font-size: 12px;
+font-weight: 700;
+letter-spacing: 1.4px;
+text-transform: uppercase;
+color: rgba(255, 255, 255, 0.76);
+}
+
+.portal-home-page .document-kicker::before {
+content: "";
+width: 26px;
+height: 2px;
+border-radius: 999px;
+background: rgba(255, 255, 255, 0.72);
+}
+
+.portal-home-page .document-hero-card h1 {
+font-size: clamp(2rem, 4vw, 3rem);
+line-height: 1.12;
+color: #ffffff;
+margin-bottom: 16px;
+font-family: var(--portal-serif);
+letter-spacing: -0.03em;
+text-wrap: balance;
+}
+
+.portal-home-page .document-hero-card p {
+font-size: 16px;
+line-height: 1.85;
+color: rgba(255, 255, 255, 0.88);
+max-width: 760px;
+margin-bottom: 0;
+}
+
+.portal-home-page .document-meta {
+margin-top: 28px;
+display: flex;
+flex-wrap: wrap;
+gap: 12px;
+}
+
+.portal-home-page .document-meta span {
+display: inline-flex;
+align-items: center;
+border-radius: 999px;
+padding: 9px 16px;
+background: rgba(255, 255, 255, 0.12);
+border: 1px solid rgba(255, 255, 255, 0.18);
+font-size: 13px;
+font-weight: 600;
+color: rgba(255, 255, 255, 0.88);
+}
+
+.portal-home-page .document-shell {
+padding: 0 0 90px;
+}
+
+.portal-home-page .document-card {
+background: #ffffff;
+border: 1px solid rgba(47, 128, 237, 0.10);
+border-radius: 24px;
+box-shadow: 0 20px 55px rgba(18, 38, 63, 0.08);
+overflow: hidden;
+}
+
+.portal-home-page .document-card-topbar {
+display: flex;
+align-items: center;
+justify-content: space-between;
+gap: 18px;
+padding: 18px 26px;
+border-bottom: 1px solid #e5edf7;
+background: linear-gradient(180deg, #fbfdff 0%, #f4f8fc 100%);
+}
+
+.portal-home-page .document-card-topbar strong {
+color: #21324b;
+font-size: 15px;
+font-weight: 700;
+}
+
+.portal-home-page .document-card-topbar span {
+color: #66788f;
+font-size: 13px;
+}
+
+.portal-home-page .docx-render {
+padding: 44px 48px 54px;
+color: #37475d;
+background: #ffffff;
+min-height: 800px;
+line-height: 1.85;
+font-family: Georgia, "Times New Roman", serif;
+font-size: 16px;
+max-width: none;
+margin: 0;
+}
+
+.portal-home-page .docx-render p,
+.portal-home-page .docx-render li,
+.portal-home-page .docx-render td {
+color: #3b4d66;
+margin-bottom: 0.95rem;
+font-size: 16px;
+}
+
+.portal-home-page .docx-render p.p1  { font-size: 2.2rem; line-height: 1.2; text-align: center; margin-bottom: 0.2rem; }
+.portal-home-page .docx-render p.p2  { font-size: 1.1rem; line-height: 1.6; text-align: center; margin-bottom: 0.2rem; }
+.portal-home-page .docx-render p.p3,
+.portal-home-page .docx-render p.p5,
+.portal-home-page .docx-render p.p9,
+.portal-home-page .docx-render p.p11,
+.portal-home-page .docx-render p.p16,
+.portal-home-page .docx-render p.p17,
+.portal-home-page .docx-render p.p20 {
+color: #37475d;
+opacity: 1;
+min-height: 1.4em;
+margin-bottom: 0.4rem;
+}
+
+.portal-home-page .docx-render p.p4,
+.portal-home-page .docx-render p.p6,
+.portal-home-page .docx-render p.p8,
+.portal-home-page .docx-render p.p12,
+.portal-home-page .docx-render p.p14,
+.portal-home-page .docx-render p.p15,
+.portal-home-page .docx-render p.p18,
+.portal-home-page .docx-render p.p19 {
+font-size: 1rem;
+}
+
+.portal-home-page .docx-render p.p7,
+.portal-home-page .docx-render p.p18 {
+margin-top: 2.6rem;
+margin-bottom: 0.7rem;
+padding-top: 1.2rem;
+border-top: 1px solid #dde7f2;
+font-size: 1.35rem;
+letter-spacing: 0.02em;
+}
+
+.portal-home-page .docx-render p.p12 b,
+.portal-home-page .docx-render p.p14 b {
+font-size: 1.08rem;
+}
+
+.portal-home-page .docx-render p.p19 {
+text-align: right;
+font-style: italic;
+color: #66788f;
+}
+
+.portal-home-page .docx-render table {
+width: 100%;
+margin: 1.2rem 0 1.8rem;
+border-collapse: collapse;
+background: #ffffff;
+overflow: hidden;
+}
+
+.portal-home-page .docx-render td,
+.portal-home-page .docx-render th {
+padding: 12px 14px;
+border: 1px solid #d7e2ee;
+vertical-align: top;
+background: #ffffff;
+}
+
+.portal-home-page .docx-render tr:first-child td {
+background: #edf4fb;
+font-weight: 600;
+}
+
+.portal-home-page .docx-render .equation-block {
+margin: 1rem 0 1.4rem;
+padding: 20px 22px;
+border: 1px solid #d7e2ee;
+border-radius: 18px;
+background: linear-gradient(180deg, #f9fbfe 0%, #f3f7fc 100%);
+}
+
+.portal-home-page .docx-render .equation {
+display: flex;
+align-items: center;
+justify-content: center;
+gap: 16px;
+flex-wrap: wrap;
+font-family: "Cambria Math", Cambria, Georgia, "Times New Roman", serif;
+font-size: 1.3rem;
+line-height: 1.45;
+color: #21324b;
+text-align: center;
+}
+
+.portal-home-page .docx-render .equation--compact {
+gap: 10px;
+font-size: 1.22rem;
+}
+
+.portal-home-page .docx-render .equation-note {
+margin-top: 6px;
+font-size: 0.98rem;
+color: #4f6178;
+text-align: center;
+}
+
+.portal-home-page .docx-render ul {
+margin: 0.6rem 0 1.2rem 1.3rem;
+padding: 0;
+}
+
+.portal-home-page .docx-render li {
+margin-bottom: 0.55rem;
+}
+
+@media (max-width: 991px) {
+.portal-home-page .document-hero {
+padding: 125px 0 50px;
+}
+.portal-home-page .document-hero-card {
+padding: 32px 26px;
+}
+.portal-home-page .docx-render {
+padding: 32px 22px 40px;
+}
+.portal-home-page .docx-render p.p1 {
+font-size: 1.85rem;
+}
+.portal-home-page .docx-render .equation {
+font-size: 1.12rem;
+}
+.portal-home-page .document-card-topbar {
+flex-direction: column;
+align-items: flex-start;
+}
 }
