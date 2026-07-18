@@ -1,16 +1,21 @@
-# Finalized Specifications: Building MIDAS Lite Form
+# Finalized Specifications: MIDAS Lite Form (Current Implementation)
 
-This document outlines the finalized technical architecture, database schema, form structure, and system preferences for building the **ICMR MIDAS 2.0 (Lite Version) Self-Assessment Form** as discussed and agreed upon.
+This document outlines the technical architecture, database schema, form structure, and system preferences for the **ICMR MIDAS 2.0 (Lite Version) Self-Assessment Form** as implemented.
 
 ---
 
 ## 1. Technical Stack
 
-*   **Frontend**: **Next.js (App Router)** + **Tailwind CSS (v4)** + **Next.js Server-side Middleware** (handles server-side session guards, public/protected route redirections, and client-side page gates). Built using a modular component model (Sidebar, Stepper, and specialized Form layers) managed by a central state coordinator.
-*   **Backend**: **FastAPI (Python)** (Handles API endpoints like `POST /api/v1/submit`, database operations, Redis caching, and file validation. Enforces router-level authentication dependencies).
+*   **Frontend**: **Next.js (v16 App Router)** + **React 19** + **Tailwind CSS (v4) & Custom Scoped CSS** + **Next.js Server-side Middleware** (handles server-side session guards, CSP nonce injection, and security headers). 
+    - The interactive form runs on `/dashboard` and preserves state via a debounced autosave connection (2-second debounce). UI navigation states (`step`, `activeDomainIdx`) are persisted in `localStorage` and cleared on reset/logout/submission.
+    - Public pages (`/` and `/lite-version`) utilize a shared layout template (`PortalPageLayout`) with an `IntersectionObserver` scroll animation. They are styled with custom stylesheets (`portal-home.css`/`portal-theme.css`) scoped under the `.portal-home-page` class to match the live portal's typography and colors while preserving normal document scrolling.
+    - The `/login` page enforces credential submission via `method="POST"`, provides autocomplete properties, and blocks request spammers with a 30-second countdown rate limiter after 5 failed attempts.
+    - **CSP (Content Security Policy)**: Middleware generates a unique base64 nonce per request via `btoa(crypto.randomUUID())`. In production, a strict `Content-Security-Policy` header is set; in development, `Content-Security-Policy-Report-Only` is used to preserve HMR. Additional security headers: `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy: camera=(), microphone=(), geolocation=()`.
+*   **Backend**: **FastAPI (Python)** (Handles API endpoints like `POST /api/v1/submit`, database operations, Redis caching, and file validation. Enforces router-level authentication dependencies and Redis-based token-bucket rate limiting).
 *   **Database**: **Supabase PostgreSQL** via **SQLModel** ORM (managed in Python, with role-based PostgreSQL RLS policies).
-*   **Auth**: **Supabase Auth** on Next.js frontend. Sessions are synced to cookies for middleware checks. JWT tokens are verified on FastAPI at the global router level.
-*   **Draft Caching**: **Redis (hosted on Redis Cloud)**, accessed strictly via the FastAPI backend (`redis-py`).
+*   **Auth**: **Supabase Auth** on Next.js frontend. Sessions are synced to cookies for middleware checks. JWT tokens are verified on FastAPI at the endpoint level by calling the Supabase Auth server's `/auth/v1/user` endpoint with the service role key (not local JWT decoding). Roles are extracted from the JWT `user_metadata -> role` claim. Cookies are configured with unified `SameSite=Lax`, `path=/`, and `Secure` (in production) options on both client and server to prevent session leaks and ensure proper logout.
+*   **Draft Caching**: **Redis (hosted on Redis Cloud)**, accessed strictly via the FastAPI backend (`redis-py`). Drafts stored under key `draft:{user_id}` with a 14-day TTL.
+*   **Rate Limiting**: **Token Bucket (Redis Lua script)**. Two limiters instantiated: `cost=1` (capacity 20, fill rate 0.33 tok/s) for lightweight endpoints, and `cost=10` (same capacity/fill rate) for the expensive `/submit` endpoint. Keys scoped per user as `rate_limit:{user_id}`. If Redis is unreachable, cost-1 requests pass through; cost-10 returns HTTP 503.
 *   **Validation**: **HTML5 / UI State Checks** (frontend validation) and **Pydantic/SQLModel** (backend validation).
 
 ---
@@ -28,7 +33,7 @@ To prevent CORS issues in development and production, Next.js acts as a reverse 
 
 To scale file uploads without memory/connection bottlenecks on the server, we use a direct-to-storage presigned URL and asynchronous webhook flow:
 
-1.  **Request Upload**: Browser asks FastAPI (`GET /api/v1/upload-url`) for a signed upload URL.
+1.  **Request Upload**: Browser asks FastAPI (`POST /api/v1/upload-url`) for a signed upload URL.
 2.  **Generate URL**: FastAPI requests Supabase Storage for a Presigned PUT URL and returns it to the browser.
 3.  **Direct Upload**: Browser uploads the CSV file directly to Supabase Storage via `PUT`.
 4.  **Asynchronous Webhook**: Supabase PostgreSQL database fires a trigger (via the `pg_net` extension) to send a `POST` request directly to the FastAPI Webhook endpoint (`/api/v1/webhooks/storage`) when the file is successfully uploaded to `storage.objects`. The request is secured with a shared `WEBHOOK_SECRET` passed in the `x-webhook-secret` header.
@@ -77,6 +82,7 @@ erDiagram
     users ||--o{ assessments : creates
     assessments ||--|{ assessment_answers : contains
     assessments ||--o{ assessment_files : attaches
+    users ||--o{ assessment_files : owns
 
     assessments {
         uuid id PK
@@ -107,6 +113,7 @@ erDiagram
 
     assessment_files {
         uuid id PK
+        uuid user_id FK "ownership tracking"
         uuid assessment_id FK
         string file_name
         string storage_path
@@ -121,10 +128,10 @@ erDiagram
 ## 6. Form Lifecycle & Security
 
 1.  **Draft State (Redis via FastAPI)**:
-    *   As the user fills out the form, Next.js calls a FastAPI endpoint (`POST /api/v1/draft`) to save the in-progress draft to Redis, keyed by the user's `user_id`. The request includes the client session JWT verified globally at the router level.
-    *   Drafts persist temporarily in Redis until either the cache is cleared manually or the form is finalized and submitted.
+    *   As the user fills out the form, Next.js calls a FastAPI endpoint (`POST /api/v1/draft`) to save the in-progress draft to Redis, keyed by the user's `user_id`. The request includes the client session JWT verified via Supabase Auth server endpoint. Draft writes and reads are rate-limited (cost=1 token bucket).
+    *   Drafts persist temporarily in Redis (14-day TTL) until either the cache is cleared manually or the form is finalized and submitted.
 2.  **Submission (PostgreSQL via FastAPI)**:
-    *   Upon clicking "Submit", Next.js calls the FastAPI submit endpoint (`POST /api/v1/submit`) with the session JWT.
+    *   Upon clicking "Submit", Next.js calls the FastAPI submit endpoint (`POST /api/v1/submit`) with the session JWT. This endpoint is rate-limited with cost=10 (heavier cost).
     *   FastAPI runs final validation checks and performs backend calculations:
         *   **CQI-Lite Score & Grade**: `(Sum of Domain Scores / Max Score) * 100` and maps to grade (Diamond, Platinum, etc.). Max score is `56` if Domain 11 is NA, otherwise `60`.
         *   **PRS-Lite Score & Risk Band**: `round(Identification Risk * Multiplier)` capped at 100, and maps to band (Low, Moderate, etc.).
@@ -133,7 +140,7 @@ erDiagram
     *   FastAPI writes the finalized data permanently to PostgreSQL, associates the file records, and deletes the draft from Redis.
     *   Submitted assessments become read-only.
 3.  **Privacy & Access Control (Row-Level Security)**:
-    *   **Route Guards**: Server-side Next.js middleware validates cookies and redirects unauthenticated traffic trying to access `/` back to `/login`. A client-side fallback handles instant redirect when user session terminates.
+    *   **Route Guards**: Server-side Next.js middleware validates cookies and redirects unauthenticated traffic trying to access protected paths (like `/dashboard`) back to `/login`. Public routes `/` (Landing Page), `/lite-version`, and `/login` are accessible anonymously. Client-side state changes are synchronized via `AuthSessionWatcher`. If the active session is lost or if the draft API returns a 401, the client-side router redirects the user to `/login`.
     *   **Submitting User**: Can fill forms, view drafts, and view/edit/delete their own final submissions. Secured via database Row-Level Security (RLS) check: `auth.uid() = user_id`.
     *   **Nodal Team / Administrator Role**: Access is checked via dynamic claims verification: `auth.jwt() -> 'user_metadata' ->> 'role' = 'nodal'`. This dynamic mapping allows adding multiple nodal team accounts without database schema updates.
     *   **Backend Stateless Role Checks**: The FastAPI security engine extracts the user's role claim directly from the decrypted JWT payload (`user_metadata -> role`). Endpoints can enforce permissions in-memory via `require_nodal` dependencies without making extra database queries.

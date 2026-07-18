@@ -9,15 +9,18 @@ The Lite Version of MIDAS 2.0 (Metric-based Integrity and Data Assessment System
 
 | Layer / Component | Technology / Tool | Purpose / Details |
 | :--- | :--- | :--- |
-| **Frontend** | Next.js (v15 App Router) | Interactive Form UI, client-side routing, and Supabase Auth session management. |
+| **Frontend** | Next.js (v16 App Router) + React 19 | Interactive Form UI, client-side routing, and Supabase Auth session management. |
 | **Backend** | FastAPI (Python) | API engine handling score calculations, Redis caching logic, and file validation. |
 | **Database** | Supabase PostgreSQL | Relational storage for submitted assessments and answers. |
 | **ORM** | SQLModel | Pydantic-compatible SQLAlchemy database model layer. |
 | **Database Migrations** | Alembic | Schema versioning and migration deployment tool. |
-| **Auth** | Supabase Auth | Handles user registrations and logins (email/password). |
-| **Draft Caching** | Redis | Temporary draft state auto-saver (hosted on Redis Cloud). |
-| **Styling** | Tailwind CSS (v4) | Responsive UI design using a Clinical Slate & Soft-Glass Accents theme, featuring tactile hover transitions and scroll-suppressed card layouts. |
+| **Auth** | Supabase Auth | Handles user registrations and logins (email/password). JWT verified server-side via Supabase Auth `/auth/v1/user` endpoint with service role key. |
+| **Draft Caching** | Redis | Temporary draft state auto-saver (hosted on Redis Cloud). Keys stored as `draft:{user_id}` with 14-day TTL. |
+| **Rate Limiting** | Token Bucket (Redis Lua Script) | Two tiers: cost=1 (20 capacity, 0.33 fill/s) for lightweight endpoints; cost=10 for `/submit`. Per-user keys `rate_limit:{user_id}`. Fail-open for cost=1 if Redis is down; returns 503 for cost=10. |
+| **Styling** | Tailwind CSS (v4) & Custom Scoped CSS | Responsive UI design using a Clinical Slate & Soft-Glass Accents theme for internal dashboard, with custom stylesheets `portal-home.css` and `portal-theme.css` scoped under `.portal-home-page` for public pages (preserving normal scrolling). |
 | **Validation** | HTML5 & Pydantic | Client-side UI checks and Server-side Pydantic validation. |
+| **Security Headers** | Next.js Middleware | CSP nonce (per-request), `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy`, `Permissions-Policy`. |
+| **Icons** | lucide-react | UI icon library. |
 
 ---
 
@@ -55,33 +58,84 @@ The Lite Version of MIDAS 2.0 (Metric-based Integrity and Data Assessment System
 ```text
 midas-2.0/
 ├── apps/
-│   ├── web/               # Next.js Frontend (Page components, Auth gate)
-│   │   ├── src/app/       # Routing layout, globals.css, state coordinator
-│   │   │   └── login/     # Standalone login page with eye password toggle
-│   │   ├── src/components/assessment/ # Refactored modular wizard components
-│   │   │   ├── Sidebar.tsx            # Left collapsable sidebar navigation
-│   │   │   ├── Stepper.tsx            # Interactive timeline & unfolding 15 domains tracker
-│   │   │   ├── DatasetBasicsForm.tsx  # Section A plain text metadata layout
-│   │   │   ├── QualityDomainForm.tsx  # Section B rubric scores & justifications
-│   │   │   ├── PrivacyCalculator.tsx  # Section C PRS-Lite risk & multiplier selectors
-│   │   │   ├── DataUploadForm.tsx     # Section D structured/unstructured file upload zone
-│   │   │   ├── ReviewForm.tsx         # Section E compiled inputs preview checklist
-│   │   │   └── SuccessView.tsx        # Success screen displaying calculated grades/scores
-│   │   ├── src/lib/       # Supabase client helpers
-│   │   └── src/middleware.ts # Server-side auth route guard middleware
-│   └── api/               # FastAPI Backend API Engine
-│       └── app/           # Core config, Redis client, endpoints
-├── packages/
-│   └── database/          # Shared SQLModel schemas & Alembic migrations
-│       ├── alembic/       # Version scripts directory
-│       ├── models/        # Assessments, Answers, and Files models
-│       ├── seed_nodal.py  # Admin seed script for Nodal user role
-│       ├── seed_user.py   # Admin seed script for standard user role
-│       └── deploy_rls_policies.py # SQL Row-level security setup script
-├── docker/                # Containers configurations
-├── docker-compose.yml     # Local orchestration services
-├── package.json           # Root workspace run scripts
-└── .env                   # Project credentials & configurations
+│   ├── web/                  # Next.js Frontend (Page components, Auth gate)
+│   │   ├── src/app/          # Routing layout, globals.css, state coordinator
+│   │   │   ├── dashboard/    # Gated dashboard page for assessments
+│   │   │   │   ├── page.tsx          # Server component, creates Supabase SSR client
+│   │   │   │   └── DashboardClient.tsx # Main assessment wizard (5-step form)
+│   │   │   ├── lite-version/ # Public page displaying Lite Version framework text
+│   │   │   ├── login/        # Standalone login page with rate limit & password toggle
+│   │   │   ├── auth-session-watcher.tsx # Client-side session change listener
+│   │   │   ├── layout.tsx    # Root layout with CSP nonce & Geist fonts
+│   │   │   ├── page.tsx      # Landing page (/)
+│   │   │   ├── portal-home.css # Scoped override stylesheet for public pages
+│   │   │   └── portal-theme.css # Scoped brand variables and fonts
+│   │   ├── src/components/
+│   │   │   ├── assessment/   # Modular wizard components
+│   │   │   │   ├── LandingPage.tsx       # Marketing landing page content
+│   │   │   │   ├── Sidebar.tsx           # Left collapsable sidebar navigation
+│   │   │   │   ├── Stepper.tsx           # 5-step stepper with 15-domain expand
+│   │   │   │   ├── DatasetBasicsForm.tsx # Section A plain text metadata layout
+│   │   │   │   ├── QualityDomainForm.tsx # Section B rubric scores & justifications
+│   │   │   │   ├── PrivacyCalculator.tsx # Section C PRS-Lite risk & multiplier
+│   │   │   │   ├── DataUploadForm.tsx    # Section D structured/unstructured upload
+│   │   │   │   ├── ReviewForm.tsx        # Section E compiled inputs preview
+│   │   │   │   └── SuccessView.tsx       # Post-submission grades/scores display
+│   │   │   ├── portal/       # Reusable public layout components
+│   │   │   │   ├── PortalNav.tsx           # Public header navigation bar
+│   │   │   │   ├── PortalFooter.tsx        # Public footer component
+│   │   │   │   ├── PortalPageLayout.tsx    # Wrapper with IntersectionObserver
+│   │   │   │   ├── LiteVersionPage.tsx     # Portal-styled presentation page
+│   │   │   │   └── lite-content.ts         # Lite framework HTML (1196 lines)
+│   │   │   └── ui/           # Reusable primitives
+│   │   │       ├── Input.tsx
+│   │   │       └── Button.tsx
+│   │   ├── src/lib/
+│   │   │   ├── supabase.ts   # Browser Supabase client singleton
+│   │   │   └── domainsData.ts # 15 domain rubric definitions (0-4)
+│   │   ├── src/middleware.ts  # Auth guard, CSP nonce, security headers
+│   │   ├── next.config.ts    # API proxy rewrites (/api/v1/* -> localhost:8000)
+│   │   ├── postcss.config.mjs # Tailwind CSS v4 PostCSS plugin
+│   │   ├── eslint.config.mjs # ESLint v9 flat config
+│   │   └── tsconfig.json     # Strict TypeScript config
+│   ├── api/                  # FastAPI Backend API Engine
+│   │   └── app/
+│   │       ├── main.py       # FastAPI app factory, CORS, /healthz
+│   │       ├── api/
+│   │       │   └── endpoints.py # All route definitions (draft, upload, submit, etc.)
+│   │       └── core/
+│   │           ├── config.py      # Pydantic settings from .env
+│   │           ├── security.py    # JWT verification, auth deps, RBAC
+│   │           ├── redis.py       # RedisDraftCache client (14-day TTL)
+│   │           ├── db.py          # SQLModel engine & session
+│   │           └── rate_limit.py  # Token bucket rate limiter (Lua script)
+│   └── database/             # Shared SQLModel schemas & Alembic migrations
+│       ├── alembic/
+│       │   ├── env.py
+│       │   ├── script.py.mako
+│       │   └── versions/
+│       │       ├── 658ba24a208f_initial_schema_migration.py
+│       │       ├── 3f92085039ed_initial_schema_migration.py
+│       │       └── 0a29c7e5edae_add_user_id_to_assessmentfile.py
+│       ├── models/
+│       │   ├── __init__.py
+│       │   ├── assessment.py
+│       │   ├── answer.py
+│       │   └── file.py
+│       ├── alembic.ini
+│       ├── pyproject.toml
+│       ├── run_migrations.py
+│       ├── setup_supabase_extras.py  # Storage bucket, webhook, realtime setup
+│       ├── deploy_rls_policies.py    # SQL Row-level security deployment
+│       ├── seed_nodal.py             # Nodal user seed script
+│       └── seed_user.py              # Standard user seed script
+├── docker/
+│   ├── api.Dockerfile        # Python 3.11-slim container
+│   └── web.Dockerfile        # Node 20-alpine multi-stage build
+├── docker-compose.yml        # Local orchestration (redis, api, web)
+├── package.json              # Root workspace run scripts
+├── .env.example              # Environment variable template
+└── .env                      # Project credentials & configurations
 ```
 
 ---
@@ -173,7 +227,7 @@ To run the full stack locally from the root workspace directory, run these scrip
     npm run dev:web
     ```
 
-Once loaded, navigate your browser to `http://localhost:3000`. The server middleware will redirect you to the `/login` route. Sign in with either your standard custodian credentials (`user@gmail.com` / `test123`) or the Nodal Team account (`nodal@gmail.com` / `test123`). Note that manual signup has been disabled for safety.
+Once loaded, navigate your browser to `http://localhost:3000`. The root URL (`/`) and the framework document page (`/lite-version`) are public routes and accessible anonymously. Attempting to navigate to the assessment wizard (`/dashboard`) or clicking login controls will route unauthenticated requests to `/login`. Sign in with either your standard custodian credentials (`user@gmail.com` / `test123`) or the Nodal Team account (`nodal@gmail.com` / `test123`). Note that manual signup has been disabled for safety.
 
 ---
 
@@ -204,7 +258,31 @@ When writing new FastAPI endpoints in `endpoints.py`, follow these dependency-in
 3. **Restrict Route to Nodal Users Only (Strict RBAC)**:
    If the endpoint should be locked down entirely so that only Nodal accounts can query it:
    ```python
-   @protected_router.get("/admin-settings", dependencies=[Depends(require_nodal)])
-   def get_settings():
-       ...
-   ```
+    @protected_router.get("/admin-settings", dependencies=[Depends(require_nodal)])
+    def get_settings():
+        ...
+    ```
+
+---
+
+## 9. Rate Limiting Developer Guide
+
+Rate limiting uses a **Token Bucket** algorithm implemented as a Lua script executed atomically in Redis. Two pre-configured instances are instantiated in `endpoints.py`:
+
+| Instance | Capacity | Fill Rate | Cost | Used On |
+|----------|----------|-----------|------|---------|
+| `rate_limiter_cost_1` | 20 | 0.33 tok/s | 1 | GET/POST draft, upload-url, assessments |
+| `rate_limiter_cost_10` | 20 | 0.33 tok/s | 10 | POST submit (expensive write) |
+
+To add rate limiting to a new endpoint:
+
+```python
+@protected_router.post("/my-endpoint", dependencies=[Depends(rate_limiter_cost_1)])
+def my_endpoint(user_id: str = Depends(get_current_user_id)):
+    ...
+```
+
+**Key behaviors:**
+- Each user gets a separate bucket keyed as `rate_limit:{user_id}`.
+- If Redis is unreachable, cost-1 requests are allowed through (fail-open); cost-10 requests return **503 Service Unavailable** to prevent data corruption under load.
+- The Lua script refills tokens based on elapsed wall-clock time (`now - last_refill`) to ensure accurate throttling even if the endpoint is called irregularly.
