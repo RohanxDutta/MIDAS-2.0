@@ -17,9 +17,14 @@ from core.db import get_session
 from core.redis import redis_drafts
 from core.security import get_current_user_id, get_current_user, CurrentUser
 from core.config import settings
+from core.rate_limit import TokenBucketRateLimiter
 
 # Create main APIRouter (for inclusion in main app)
 router = APIRouter()
+
+# Shared Token Bucket Rate Limiters (Fix Finding 7)
+rate_limiter_cost_1 = TokenBucketRateLimiter(capacity=20, fill_rate=0.33, cost=1)
+rate_limiter_cost_10 = TokenBucketRateLimiter(capacity=20, fill_rate=0.33, cost=10)
 
 # Public router
 public_router = APIRouter(prefix="/api/v1")
@@ -36,8 +41,8 @@ router.include_router(protected_router)
 # --- PYDANTIC SCHEMAS FOR VALIDATION ---
 
 class AnswerInput(BaseModel):
-    domain_id: int # 1 to 15
-    score: int     # 0 to 4
+    domain_id: int = PydanticField(ge=1, le=15)
+    score: int = PydanticField(ge=0, le=4)
     factual_description: str
 
 class SubmitInput(BaseModel):
@@ -67,7 +72,7 @@ class UploadUrlInput(BaseModel):
 
 # --- API ENDPOINTS ---
 
-@protected_router.post("/draft")
+@protected_router.post("/draft", dependencies=[Depends(rate_limiter_cost_1)])
 def save_draft(payload: Dict[str, Any], user_id: str = Depends(get_current_user_id)):
     """Saves the current draft form input data to Redis, keyed by user_id."""
     success = redis_drafts.save_draft(user_id, payload)
@@ -79,7 +84,7 @@ def save_draft(payload: Dict[str, Any], user_id: str = Depends(get_current_user_
     return {"status": "success", "message": "Draft saved"}
 
 
-@protected_router.get("/draft")
+@protected_router.get("/draft", dependencies=[Depends(rate_limiter_cost_1)])
 def get_draft(user_id: str = Depends(get_current_user_id)):
     """Retrieves the user's active draft form input from Redis."""
     draft = redis_drafts.get_draft(user_id)
@@ -88,7 +93,7 @@ def get_draft(user_id: str = Depends(get_current_user_id)):
     return draft
 
 
-@protected_router.post("/upload-url")
+@protected_router.post("/upload-url", dependencies=[Depends(rate_limiter_cost_1)])
 def get_presigned_url(payload: UploadUrlInput, user_id: str = Depends(get_current_user_id), db: Session = Depends(get_session)):
     """Generates a Supabase Storage presigned URL for direct client PUT upload."""
     if not payload.file_name.lower().endswith(".csv"):
@@ -98,7 +103,8 @@ def get_presigned_url(payload: UploadUrlInput, user_id: str = Depends(get_curren
 
     # Unique path structure in the bucket: evidence/user_id/uuid/file_name
     file_uuid = uuid4()
-    storage_path = f"evidence/{user_id}/{file_uuid}/{payload.file_name}"
+    safe_file_name = os.path.basename(payload.file_name)
+    storage_path = f"evidence/{user_id}/{file_uuid}/{safe_file_name}"
     
     # Request Supabase Storage REST API for a presigned PUT URL
     supabase_storage_url = f"{settings.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/upload/sign/private/{storage_path}"
@@ -122,11 +128,12 @@ def get_presigned_url(payload: UploadUrlInput, user_id: str = Depends(get_curren
         if not upload_url:
             raise HTTPException(status_code=500, detail="Supabase Storage failed to return an upload URL.")
             
-        # Create a pending file record in our database
+        # Create a pending file record in our database with explicit user_id ownership
         db_file = AssessmentFile(
             id=file_uuid,
+            user_id=UUID(user_id),
             assessment_id=UUID(int=0), # Placeholder, linked during final form submit
-            file_name=payload.file_name,
+            file_name=safe_file_name,
             storage_path=storage_path,
             file_size=payload.file_size,
             status="pending"
@@ -200,7 +207,7 @@ def handle_storage_webhook(payload: Dict[str, Any], x_webhook_secret: Optional[s
     return {"status": "completed", "file_id": file_uuid, "validation": db_file.status}
 
 
-@protected_router.post("/submit")
+@protected_router.post("/submit", dependencies=[Depends(rate_limiter_cost_10)])
 def submit_assessment(payload: SubmitInput, user_id: str = Depends(get_current_user_id), db: Session = Depends(get_session)):
     """Calculates Quality and Privacy indices, saves submission permanently to PostgreSQL, and clears draft."""
     
@@ -312,13 +319,22 @@ def submit_assessment(payload: SubmitInput, user_id: str = Depends(get_current_u
         )
         db.add(db_answer)
 
-    # 7. Relink and validate uploaded structured CSV files
+    # 7. Relink and validate uploaded structured CSV files with explicit ownership verification
     if payload.dataset_type == "structured" and payload.uploaded_file_ids:
         for file_id in payload.uploaded_file_ids:
-            db_file = db.exec(select(AssessmentFile).where(AssessmentFile.id == file_id)).first()
-            if db_file:
-                db_file.assessment_id = db_assessment.id
-                db.add(db_file)
+            db_file = db.exec(
+                select(AssessmentFile).where(
+                    AssessmentFile.id == file_id,
+                    AssessmentFile.user_id == UUID(user_id)
+                )
+            ).first()
+            if not db_file:
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail=f"File {file_id} not found or does not belong to you."
+                )
+            db_file.assessment_id = db_assessment.id
+            db.add(db_file)
 
     db.commit()
 
@@ -334,7 +350,7 @@ def submit_assessment(payload: SubmitInput, user_id: str = Depends(get_current_u
     }
 
 
-@protected_router.get("/assessments", response_model=List[Dict[str, Any]])
+@protected_router.get("/assessments", response_model=List[Dict[str, Any]], dependencies=[Depends(rate_limiter_cost_1)])
 def get_assessments(
     current_user: CurrentUser = Depends(get_current_user),
     db: Session = Depends(get_session)

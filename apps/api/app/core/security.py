@@ -1,3 +1,4 @@
+import requests
 from fastapi import Header, HTTPException, status, Depends
 from jose import jwt, JWTError
 from pydantic import BaseModel
@@ -8,7 +9,7 @@ class CurrentUser(BaseModel):
     role: str
 
 def get_current_user(authorization: str = Header(None)) -> CurrentUser:
-    """Decodes and validates the Supabase Auth JWT token from the Authorization Header.
+    """Decodes and validates the Supabase Auth JWT token by verifying it directly with the Supabase Auth server.
     Returns the user's CurrentUser session details (ID and Role) if valid.
     """
     if not authorization:
@@ -26,20 +27,25 @@ def get_current_user(authorization: str = Header(None)) -> CurrentUser:
                 detail="Invalid authentication scheme",
             )
         
-        # Decode the JWT token signed by Supabase Auth using HS256
-        payload = jwt.decode(
-            token,
-            settings.SUPABASE_JWT_SECRET,
-            algorithms=["HS256"],
-            options={"verify_aud": False} # Supabase audits can vary locally vs cloud
-        )
+        # Verify the user token with the Supabase Auth server (algorithm-agnostic & secure)
+        url = f"{settings.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/user"
+        headers = {
+            "apikey": settings.SUPABASE_SERVICE_ROLE_KEY,
+            "Authorization": f"Bearer {token}"
+        }
+        res = requests.get(url, headers=headers, timeout=5)
+        if res.status_code != 200:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail=f"Unauthorized session: Supabase verification returned status code {res.status_code}"
+            )
         
-        # Extract the user's ID (sub claim)
-        user_id = payload.get("sub")
+        payload = res.json()
+        user_id = payload.get("id")
         if not user_id:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid token payload: missing sub claim",
+                detail="Invalid user response from Supabase: missing id",
             )
             
         # Extract the user's role from user_metadata (defaults to 'user')
@@ -48,7 +54,7 @@ def get_current_user(authorization: str = Header(None)) -> CurrentUser:
             
         return CurrentUser(id=user_id, role=role)
 
-    except (ValueError, JWTError) as e:
+    except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=f"Invalid or expired credentials: {str(e)}",

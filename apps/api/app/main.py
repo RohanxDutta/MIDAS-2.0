@@ -12,11 +12,12 @@ app = FastAPI(
     version="1.0.0"
 )
 
+from core.config import settings
+
 # Configure CORS Middleware
-# Next.js will proxy requests via next.config.js to avoid CORS, but this is a helpful fallback
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # In production, restrict this to your Next.js domain
+    allow_origins=settings.CORS_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
