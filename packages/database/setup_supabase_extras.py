@@ -86,9 +86,11 @@ def main():
                     );
 
                     PERFORM net.http_post(
-                        '{webhook_url}',
-                        payload::text,
-                        '{{"Content-Type": "application/json", "x-webhook-secret": "{webhook_secret}"}}'::text
+                        url := '{webhook_url}',
+                        body := payload,
+                        headers := '{{"Content-Type": "application/json", "x-webhook-secret": "{webhook_secret}"}}'::jsonb,
+                        params := '{{}}'::jsonb,
+                        timeout_ms := 10000
                     );
                     RETURN NEW;
                 END;
