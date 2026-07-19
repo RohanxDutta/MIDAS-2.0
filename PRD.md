@@ -7,13 +7,13 @@ This document outlines the technical architecture, database schema, form structu
 ## 1. Technical Stack
 
 *   **Frontend**: **Next.js (v16 App Router)** + **React 19** + **Tailwind CSS (v4) & Custom Scoped CSS** + **Next.js Server-side Middleware** (handles server-side session guards, CSP nonce injection, and security headers). 
-    - The interactive form runs on `/dashboard` and preserves state via a debounced autosave connection (2-second debounce). UI navigation states (`step`, `activeDomainIdx`) are persisted in `localStorage` and cleared on reset/logout/submission.
+    - Standard users fill out the interactive form on `/dashboard` and view past submissions on `/assessments`. The interactive form preserves state via a debounced autosave connection (2-second debounce). UI navigation states (`step`, `activeDomainIdx`) are persisted in `localStorage` and cleared on reset/logout/submission.
     - Public pages (`/`, `/lite-version`, and `/login`) use the `.portal-home-page` scoped class from `portal-home.css`/`portal-theme.css` for consistent portal typography and colors while preserving normal document scrolling. The landing page (`/`) and framework page (`/lite-version`) additionally use the `PortalPageLayout` wrapper with `IntersectionObserver` scroll animation. The login page uses `PortalNav` directly instead of `PortalPageLayout`.
     - The `/login` page enforces credential submission via `method="POST"`, provides autocomplete properties, and blocks request spammers with a 30-second countdown rate limiter after 5 failed attempts. The page uses `PortalNav` across the top (showing "Expert Login" link when unauthenticated) and the login card is vertically/horizontally centered below the fixed nav via `h-[calc(100vh-72px)] mt-[72px]`. The card uses a glass-morphism style (`bg-white/90 backdrop-blur-md`) and the title uses `font-serif font-black`.
     - **CSP (Content Security Policy)**: Middleware generates a unique base64 nonce per request via `btoa(crypto.randomUUID())`. In production, a strict `Content-Security-Policy` header is set; in development, `Content-Security-Policy-Report-Only` is used to preserve HMR. Additional security headers: `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy: camera=(), microphone=(), geolocation=()`.
 *   **Backend**: **FastAPI (Python)** (Handles API endpoints like `POST /api/v1/submit`, database operations, Redis caching, and file validation. Enforces router-level authentication dependencies and Redis-based token-bucket rate limiting).
 *   **Database**: **Supabase PostgreSQL** via **SQLModel** ORM (managed in Python, with role-based PostgreSQL RLS policies).
-*   **Auth**: **Supabase Auth** on Next.js frontend. Sessions are synced to cookies for middleware checks. JWT tokens are verified on FastAPI at the endpoint level by calling the Supabase Auth server's `/auth/v1/user` endpoint with the service role key (not local JWT decoding). Roles are extracted from the JWT `user_metadata -> role` claim. Cookies are configured with unified `SameSite=Lax`, `path=/`, and `Secure` (in production) options on both client and server to prevent session leaks and ensure proper logout.
+*   **Auth**: **Supabase Auth** on Next.js frontend. Sessions are synced to cookies for middleware checks. JWT tokens are verified on FastAPI at the endpoint level by calling the Supabase Auth server's `/auth/v1/user` endpoint with the service role key (not local JWT decoding). Roles are extracted from the JWT `app_metadata` claim (e.g., `app_metadata.get("role")`), with `user_metadata` acting only as a frontend fallback. Cookies are configured with unified `SameSite=Lax`, `path=/`, and `Secure` (in production) options on both client and server to prevent session leaks and ensure proper logout.
 *   **Draft Caching**: **Redis (hosted on Redis Cloud)**, accessed strictly via the FastAPI backend (`redis-py`). Drafts stored under key `draft:{user_id}` with a 14-day TTL.
 *   **Rate Limiting**: **Token Bucket (Redis Lua script)**. Two limiters instantiated: `cost=1` (capacity 20, fill rate 0.33 tok/s) for lightweight endpoints, and `cost=10` (same capacity/fill rate) for the expensive `/submit` endpoint. Keys scoped per user as `rate_limit:{user_id}`. If Redis is unreachable, cost-1 requests pass through; cost-10 returns HTTP 503.
 *   **Validation**: **HTML5 / UI State Checks** (frontend validation) and **Pydantic/SQLModel** (backend validation).
@@ -25,7 +25,7 @@ This document outlines the technical architecture, database schema, form structu
 To prevent CORS issues in development and production, Next.js acts as a reverse proxy:
 *   **Next.js Frontend**: Runs on port `3000`.
 *   **FastAPI Backend**: Runs on port `8000`.
-*   **Proxy Configuration**: Next.js is configured via `next.config.js` to rewrite all client requests from `/api/v1/:path*` to the FastAPI backend (`http://localhost:8000/api/v1/:path*`). The browser communicates strictly with port `3000`.
+*   **Proxy Configuration**: Next.js is configured via `next.config.ts` to rewrite all client requests from `/api/v1/:path*` to the FastAPI backend (`http://localhost:8000/api/v1/:path*`). The browser communicates strictly with port `3000`.
 
 ---
 
@@ -134,18 +134,22 @@ erDiagram
 2.  **Submission (PostgreSQL via FastAPI)**:
     *   Upon clicking "Submit", Next.js calls the FastAPI submit endpoint (`POST /api/v1/submit`) with the session JWT. This endpoint is rate-limited with cost=10 (heavier cost).
     *   FastAPI runs final validation checks and performs backend calculations:
-        *   **CQI-Lite Score & Grade**: `(Sum of Domain Scores / Max Score) * 100` and maps to grade (Diamond, Platinum, etc.). Max score is `56` if Domain 11 is NA, otherwise `60`.
+        *   **CQI-Lite Score & Grade**: `(Sum of Domain Scores / Max Score) * 100` and maps to grade (Diamond, Platinum, Gold, Silver, Bronze, Remediation). Max score is `56` if Domain 11 is NA, otherwise `60`.
         *   **PRS-Lite Score & Risk Band**: `round(Identification Risk * Multiplier)` capped at 100, and maps to band (Low, Moderate, etc.).
-        *   **Release Category**: Looks up the 4x5 release matrix using the computed CQI Grade and PRS Risk Band.
-    *   Scores and category are saved directly into the `assessments` table but **not** displayed on the user's frontend.
+        *   **Release Category**: Looks up the 4x6 release matrix using the computed CQI Grade and PRS Risk Band.
+    *   Scores and category are saved directly into the `assessments` table and are displayed prominently on the user's frontend via the `/assessments` dashboard, the `SuccessView`, and to the Nodal team on `/dashboard`.
     *   FastAPI writes the finalized data permanently to PostgreSQL, associates the file records, and deletes the draft from Redis.
     *   **Auto-Cleanup**: Deletes any remaining unlinked draft `assessment_files` (where `assessment_id IS NULL`) for the user to prevent orphaned data.
     *   Submitted assessments become read-only.
 3.  **Privacy & Access Control (Row-Level Security)**:
-    *   **Route Guards**: Server-side Next.js middleware validates cookies and redirects unauthenticated traffic trying to access protected paths (like `/dashboard`) back to `/login`. Public routes `/` (Landing Page), `/lite-version`, and `/login` are accessible anonymously. Client-side state changes are synchronized via `AuthSessionWatcher`. If the active session is lost or if the draft API returns a 401, the client-side router redirects the user to `/login`.
+    *   **Route Guards**: Server-side Next.js middleware validates cookies and redirects unauthenticated traffic trying to access protected paths (like `/dashboard` and `/assessments`) back to `/login`. Public routes `/` (Landing Page), `/lite-version`, and `/login` are accessible anonymously. Client-side state changes are synchronized via `AuthSessionWatcher`. If the active session is lost or if the draft API returns a 401, the client-side router redirects the user to `/login`.
     *   **Submitting User**: Can fill forms, view drafts, and view/edit/delete their own final submissions. Secured via database Row-Level Security (RLS) check: `auth.uid() = user_id`.
-    *   **Nodal Team / Administrator Role**: Access is checked via dynamic claims verification: `auth.jwt() -> 'user_metadata' ->> 'role' = 'nodal'`. This dynamic mapping allows adding multiple nodal team accounts without database schema updates.
-    *   **Backend Stateless Role Checks**: The FastAPI security engine extracts the user's role claim directly from the decrypted JWT payload (`user_metadata -> role`). Endpoints can enforce permissions in-memory via `require_nodal` dependencies without making extra database queries.
+    *   **Nodal Team / Administrator Role**: Access is checked via dynamic claims verification: `auth.jwt() -> 'app_metadata' ->> 'role' = 'nodal'`. This dynamic mapping allows adding multiple nodal team accounts without database schema updates. The Nodal team uses a specialized workflow:
+        *   They view all global submissions on `DashboardNodal.tsx` (`/dashboard`).
+        *   They can drill down into a specific submission via `DatasetDetailClient.tsx` (`/dashboard/[id]`).
+        *   The system uses a shared `SubmissionStatus` model (Submitted, Under Review, Approved, Revision Required) defined in `nodal-data.ts`.
+    *   **Backend Stateless Role Checks**: The FastAPI security engine extracts the user's role claim directly from the decrypted JWT payload (`app_metadata.get("role")`). Endpoints can enforce permissions in-memory via `require_nodal` dependencies without making extra database queries.
     *   **Role-Aware Query Routing**: The list assessments endpoint (`GET /api/v1/assessments`) uses `Depends(get_current_user)` to inspect the role claim. It dynamically exposes all records to `nodal` users while automatically restricting standard users to their own assessments.
-    *   **Evidence Files (CSVs)**: Uploaded to a private Supabase Storage Bucket, secured with Row Level Security (RLS) so only the creator (under folder `evidence/auth.uid()/`) and the Nodal Team can download them, evaluated via dynamic role metadata claims.
+    *   **Evidence Files (CSVs)**: Uploaded to a Supabase Storage Bucket named `private`. The files are saved under the path prefix `evidence/auth.uid()/`. They are secured with Row Level Security (RLS) so only the creator and the Nodal Team can access them.
+    *   **Secure Downloads**: The `GET /api/v1/assessments/{assessment_id}/download` endpoint generates a secure, short-lived (60-second) presigned URL to access these files directly from the `private` bucket, enforcing all RLS constraints.
     *   **Database Tables Security**: RLS is enabled on `assessments`, `assessment_answers`, and `assessment_files` to prevent cross-tenant data access, checking ownership and role properties.

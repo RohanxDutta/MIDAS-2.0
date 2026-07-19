@@ -57,12 +57,25 @@ The Lite Version of MIDAS 2.0 (Metric-based Integrity and Data Assessment System
 
 ```text
 midas-2.0/
+├── PRD.md                    # Official Product Requirements Document
+├── midas-lite-version.md     # Original framework documentation reference
 ├── apps/
 │   ├── web/                  # Next.js Frontend (Page components, Auth gate)
 │   │   ├── src/app/          # Routing layout, globals.css, state coordinator
-│   │   │   ├── dashboard/    # Gated dashboard page for assessments
+│   │   │   ├── assessments/  # Standard user dashboard for past submissions
+│   │   │   │   ├── page.tsx
+│   │   │   │   ├── AssessmentsClient.tsx
+│   │   │   │   └── [id]/
+│   │   │   │       ├── page.tsx
+│   │   │   │       └── DatasetPreviewClient.tsx
+│   │   │   ├── dashboard/    # Nodal dashboard & Assessment wizard
 │   │   │   │   ├── page.tsx          # Server component, creates Supabase SSR client
-│   │   │   │   └── DashboardClient.tsx # Main assessment wizard (5-step form)
+│   │   │   │   ├── DashboardClient.tsx # Main assessment wizard (5-step form)
+│   │   │   │   ├── DashboardNodal.tsx  # Nodal user inbox for evaluating submitted assessments
+│   │   │   │   ├── nodal-data.ts       # Shared types and status definitions
+│   │   │   │   └── [id]/
+│   │   │   │       ├── page.tsx        
+│   │   │   │       └── DatasetDetailClient.tsx # Detailed view of an assessment for nodal review
 │   │   │   ├── lite-version/ # Public page displaying Lite Version framework text
 │   │   │   ├── login/        # Standalone login page with rate limit & password toggle
 │   │   │   ├── auth-session-watcher.tsx # Client-side session change listener
@@ -85,7 +98,8 @@ midas-2.0/
 │   │   │   │   ├── PortalFooter.tsx        # Public footer component
 │   │   │   │   ├── PortalPageLayout.tsx    # Wrapper with IntersectionObserver
 │   │   │   │   ├── LiteVersionPage.tsx     # Portal-styled presentation page
-│   │   │   │   └── lite-content.ts         # Lite framework HTML (1196 lines)
+│   │   │   │   ├── lite-content.ts         # Lite framework HTML (1196 lines)
+│   │   │   │   └── lite_page_snapshot.txt  # Reference layout snapshot for framework structure
 │   │   │   └── ui/           # Reusable primitives
 │   │   │       ├── Input.tsx
 │   │   │       └── Button.tsx
@@ -127,6 +141,7 @@ midas-2.0/
 │       ├── alembic.ini
 │       ├── pyproject.toml
 │       ├── run_migrations.py
+│       ├── setup.py                  # Database package configuration
 │       ├── setup_supabase_extras.py  # Storage bucket, webhook, realtime setup
 │       ├── deploy_rls_policies.py    # SQL Row-level security deployment
 │       ├── fix_storage_permissions.py # Repair script for broken Supabase Storage permissions
@@ -236,7 +251,9 @@ To run the full stack locally from the root workspace directory, run these scrip
     npm run dev:web
     ```
 
-Once loaded, navigate your browser to `http://localhost:3000`. The root URL (`/`) and the framework document page (`/lite-version`) are public routes and accessible anonymously. Attempting to navigate to the assessment wizard (`/dashboard`) or clicking login controls will route unauthenticated requests to `/login`. Sign in with either your standard custodian credentials (`user@gmail.com` / `test123`) or the Nodal Team account (`nodal@gmail.com` / `test123`). Note that manual signup has been disabled for safety.
+Once loaded, navigate your browser to `http://localhost:3000`. The root URL (`/`) and the framework document page (`/lite-version`) are public routes and accessible anonymously. Attempting to navigate to the assessment wizard (`/dashboard`) or past submissions (`/assessments`) will route unauthenticated requests to `/login`. 
+
+Sign in with either your standard custodian credentials (`user@gmail.com` / `test123`) or the Nodal Team account (`nodal@gmail.com` / `test123`). Standard users can fill out the wizard at `/dashboard` and view past submissions at `/assessments`. Nodal users are routed to a specialized inbox at `/dashboard` where they can view, sort, and review all submissions globally, clicking into `/dashboard/[id]` for the complete detail view. Note that manual signup has been disabled for safety.
 
 ---
 
@@ -271,6 +288,9 @@ When writing new FastAPI endpoints in `endpoints.py`, follow these dependency-in
     def get_settings():
         ...
     ```
+
+4. **Presigned Downloads (File Access)**:
+   The `GET /api/v1/assessments/{assessment_id}/download` endpoint generates a 60-second presigned URL for downloading evidence files directly from the Supabase `private` storage bucket. It enforces RLS constraints via JWT.
 
 ---
 
