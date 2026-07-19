@@ -43,6 +43,13 @@ def main():
             conn.execute(text("ALTER TABLE assessment_answers ENABLE ROW LEVEL SECURITY;"))
             conn.execute(text("ALTER TABLE assessment_files ENABLE ROW LEVEL SECURITY;"))
             
+            print("Granting table privileges to authenticated, service_role, and anon roles...")
+            conn.execute(text("GRANT ALL ON TABLE assessments TO authenticated, service_role, anon;"))
+            conn.execute(text("GRANT ALL ON TABLE assessment_answers TO authenticated, service_role, anon;"))
+            conn.execute(text("GRANT ALL ON TABLE assessment_files TO authenticated, service_role, anon;"))
+            conn.execute(text("GRANT ALL ON ALL TABLES IN SCHEMA public TO authenticated, service_role, anon;"))
+            conn.execute(text("ALTER DEFAULT PRIVILEGES IN SCHEMA public GRANT ALL ON TABLES TO authenticated, service_role, anon;"))
+            
             # --- ASSESSMENTS POLICIES ---
             print("Creating RLS policies for 'assessments' table...")
             conn.execute(text("DROP POLICY IF EXISTS assessments_select_policy ON assessments;"))
@@ -109,7 +116,7 @@ def main():
                 FOR ALL
                 USING (
                     auth.jwt() -> 'user_metadata' ->> 'role' = 'nodal' OR
-                    (assessment_id = '00000000-0000-0000-0000-000000000000'::uuid AND split_part(storage_path, '/', 2)::uuid = auth.uid()) OR
+                    ((assessment_id IS NULL OR assessment_id = '00000000-0000-0000-0000-000000000000'::uuid) AND split_part(storage_path, '/', 2)::uuid = auth.uid()) OR
                     EXISTS (
                         SELECT 1 FROM assessments 
                         WHERE assessments.id = assessment_files.assessment_id 

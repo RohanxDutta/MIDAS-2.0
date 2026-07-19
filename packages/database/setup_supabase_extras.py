@@ -73,7 +73,10 @@ def main():
             # In Supabase, pg_net provides net.http_post under the 'net' schema
             conn.execute(text(f"""
                 CREATE OR REPLACE FUNCTION public.notify_file_upload()
-                RETURNS TRIGGER AS $$
+                RETURNS TRIGGER
+                SECURITY DEFINER
+                SET search_path = public, storage, net, extensions
+                AS $$
                 DECLARE
                     payload jsonb;
                 BEGIN
@@ -90,11 +93,11 @@ def main():
                         body := payload,
                         headers := '{{"Content-Type": "application/json", "x-webhook-secret": "{webhook_secret}"}}'::jsonb,
                         params := '{{}}'::jsonb,
-                        timeout_ms := 10000
+                        timeout_milliseconds := 10000
                     );
                     RETURN NEW;
                 END;
-                $$ LANGUAGE plpgsql SECURITY DEFINER;
+                $$ LANGUAGE plpgsql;
             """))
 
             # 4. Bind trigger to storage.objects table
@@ -179,8 +182,19 @@ def main():
                 );
             """))
 
+            # 7. Restore Storage Schema Permissions and Default Grants
+            print("7. Restoring schema, table, sequence, and function privileges on storage schema...")
+            conn.execute(text("GRANT USAGE ON SCHEMA storage TO anon, authenticated, service_role;"))
+            conn.execute(text("GRANT ALL ON ALL TABLES IN SCHEMA storage TO anon, authenticated, service_role;"))
+            conn.execute(text("GRANT ALL ON ALL SEQUENCES IN SCHEMA storage TO anon, authenticated, service_role;"))
+            conn.execute(text("GRANT EXECUTE ON ALL FUNCTIONS IN SCHEMA storage TO anon, authenticated, service_role;"))
+
+            conn.execute(text("ALTER DEFAULT PRIVILEGES IN SCHEMA storage GRANT ALL ON TABLES TO anon, authenticated, service_role;"))
+            conn.execute(text("ALTER DEFAULT PRIVILEGES IN SCHEMA storage GRANT ALL ON SEQUENCES TO anon, authenticated, service_role;"))
+            conn.execute(text("ALTER DEFAULT PRIVILEGES IN SCHEMA storage GRANT EXECUTE ON FUNCTIONS TO anon, authenticated, service_role;"))
+
             trans.commit()
-            print("\nSupabase storage bucket, webhooks, realtime settings, and storage RLS configured successfully!")
+            print("\nSupabase storage bucket, webhooks, realtime settings, storage RLS, and schema permissions configured successfully!")
         except Exception as e:
             trans.rollback()
             print(f"\nError: Database configuration failed: {e}")
