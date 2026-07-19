@@ -132,7 +132,7 @@ def get_presigned_url(payload: UploadUrlInput, user_id: str = Depends(get_curren
         db_file = AssessmentFile(
             id=file_uuid,
             user_id=UUID(user_id),
-            assessment_id=UUID(int=0), # Placeholder, linked during final form submit
+            assessment_id=None, # Linked to assessment during final form submit
             file_name=safe_file_name,
             storage_path=storage_path,
             file_size=payload.file_size,
@@ -142,8 +142,10 @@ def get_presigned_url(payload: UploadUrlInput, user_id: str = Depends(get_curren
         db.commit()
         db.refresh(db_file)
 
-        # Build absolute URL if Supabase returns relative API paths
-        if upload_url.startswith("/"):
+        # Build absolute URL ensuring /storage/v1 prefix for Supabase Storage REST endpoints
+        if upload_url.startswith("/object/"):
+            upload_url = f"{settings.NEXT_PUBLIC_SUPABASE_URL}/storage/v1{upload_url}"
+        elif upload_url.startswith("/"):
             upload_url = f"{settings.NEXT_PUBLIC_SUPABASE_URL}{upload_url}"
 
         return {
