@@ -48,9 +48,9 @@ def get_current_user(authorization: str = Header(None)) -> CurrentUser:
                 detail="Invalid user response from Supabase: missing id",
             )
             
-        # Extract the user's role from user_metadata (defaults to 'user')
-        user_metadata = payload.get("user_metadata", {})
-        role = user_metadata.get("role", "user")
+        # Extract the user's role from app_metadata (server-only, tamper-proof)
+        app_metadata = payload.get("app_metadata", {})
+        role = app_metadata.get("role", "user")
             
         return CurrentUser(id=user_id, role=role)
 

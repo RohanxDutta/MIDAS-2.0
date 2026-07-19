@@ -43,8 +43,8 @@ def seed_standard_user():
         "email": "user@gmail.com",
         "password": "test123",
         "email_confirm": True, # Bypasses email validation link confirmation
-        "user_metadata": {
-            "role": "user"
+        "app_metadata": {
+            "role": "user"  # Server-only app_metadata — tamper-proof, not writable by client
         }
     }
     
@@ -57,7 +57,19 @@ def seed_standard_user():
             users = users_list.get("users", []) if isinstance(users_list, dict) else users_list
             for user in users:
                 if user.get("email") == "user@gmail.com":
-                    print("User 'user@gmail.com' already exists. Skipping creation.")
+                    print("User 'user@gmail.com' already exists. Ensuring app_metadata role is 'user'...")
+                    user_id = user.get("id")
+                    update_url = f"{admin_users_url}/{user_id}"
+                    update_payload = {
+                        "app_metadata": {
+                            "role": "user"
+                        }
+                    }
+                    update_resp = requests.put(update_url, json=update_payload, headers=headers)
+                    if update_resp.status_code == 200:
+                        print("Success: app_metadata role updated to 'user'.")
+                    else:
+                        print(f"Warning: Failed to update app_metadata role: {update_resp.text}")
                     return
     except Exception as e:
         print(f"Warning: Error listing users: {e}")

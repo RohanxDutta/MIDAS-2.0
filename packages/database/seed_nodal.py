@@ -44,8 +44,8 @@ def seed_nodal_user():
         "email": "nodal@gmail.com",
         "password": "test123",
         "email_confirm": True, # Bypasses email validation link confirmation
-        "user_metadata": {
-            "role": "nodal" # Add metadata just in case, though we check email in RLS policies
+        "app_metadata": {
+            "role": "nodal" # Server-only app_metadata — tamper-proof, not writable by client
         }
     }
     
@@ -65,7 +65,7 @@ def seed_nodal_user():
                     user_id = user.get("id")
                     update_url = f"{admin_users_url}/{user_id}"
                     update_payload = {
-                        "user_metadata": {
+                        "app_metadata": {
                             "role": "nodal"
                         }
                     }

@@ -140,7 +140,7 @@ def main():
                 USING (
                     bucket_id = 'private' AND (
                         name LIKE 'evidence/' || auth.uid()::text || '/%' OR
-                        auth.jwt() -> 'user_metadata' ->> 'role' = 'nodal'
+                        auth.jwt() -> 'app_metadata' ->> 'role' = 'nodal'
                     )
                 );
             """))
