@@ -1,10 +1,10 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
 import { redirect } from 'next/navigation'
-import DashboardClient from './DashboardClient'
-import DashboardNodal from './DashboardNodal'
+import DatasetDetailClient from './DatasetDetailClient'
 
-export default async function DashboardPage() {
+export default async function DatasetDetailPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = await params
   const cookieStore = await cookies()
   const supabase = createServerClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -22,11 +22,5 @@ export default async function DashboardPage() {
     redirect('/login?error=session_expired')
   }
 
-  const role = user?.app_metadata?.role ?? user?.user_metadata?.role
-
-  if (role === 'nodal') {
-    return <DashboardNodal initialUser={user} />
-  }
-
-  return <DashboardClient initialUser={user} />
+  return <DatasetDetailClient id={id} initialUser={user} />
 }

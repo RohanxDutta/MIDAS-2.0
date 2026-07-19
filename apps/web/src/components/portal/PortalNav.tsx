@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { LogOut } from 'lucide-react';
 
 interface PortalNavProps {
-  user?: { email: string; user_metadata?: { role?: string } } | null;
+  user?: { email: string; app_metadata?: { role?: string }; user_metadata?: { role?: string } } | null;
   onLogout?: () => void;
 }
 
@@ -15,7 +15,7 @@ export function PortalNav({ user, onLogout }: PortalNavProps) {
   };
 
   const initials = user ? getInitials(user.email) : '';
-  const role = user?.user_metadata?.role === 'nodal' ? 'Nodal Team' : 'Data Custodian';
+  const role = (user?.app_metadata?.role ?? user?.user_metadata?.role) === 'nodal' ? 'Nodal Team' : 'Data Custodian';
 
   return (
     <nav>

@@ -1,6 +1,6 @@
 export function PortalFooter() {
   return (
-    <footer>
+    <footer className="!py-3.5 shrink-0">
       <div className="footer-left">
         <img className="footer-logo" src="/logo.svg" alt="ICMR" />
         <p className="footer-text">

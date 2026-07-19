@@ -6,6 +6,9 @@ import { PortalFooter } from './PortalFooter';
 
 interface PortalPageLayoutProps {
   children: React.ReactNode;
+  user?: any;
+  onLogout?: () => void;
+  showFooter?: boolean;
 }
 
 /**
@@ -29,7 +32,7 @@ interface PortalPageLayoutProps {
  * New pages only need to provide their own <section> content blocks.
  * Do NOT duplicate nav/footer/observer logic in page components.
  */
-export function PortalPageLayout({ children }: PortalPageLayoutProps) {
+export function PortalPageLayout({ children, user, onLogout, showFooter = true }: PortalPageLayoutProps) {
   // Scroll fade-up animation — mirrors the live site's portal-index.js observer
   useEffect(() => {
     let observer: IntersectionObserver | null = null;
@@ -60,10 +63,12 @@ export function PortalPageLayout({ children }: PortalPageLayoutProps) {
   }, []);
 
   return (
-    <div className="portal-home-page">
-      <PortalNav />
-      {children}
-      <PortalFooter />
+    <div className="portal-home-page min-h-screen flex flex-col bg-portal">
+      <PortalNav user={user} onLogout={onLogout} />
+      <main className="flex-1 flex flex-col min-h-0 pt-[72px]">
+        {children}
+      </main>
+      {showFooter && <PortalFooter />}
     </div>
   );
 }
