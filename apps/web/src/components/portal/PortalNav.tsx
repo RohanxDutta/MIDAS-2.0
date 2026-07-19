@@ -37,9 +37,18 @@ export function PortalNav({ user, onLogout }: PortalNavProps) {
         <span className="nav-btn nav-btn-outline">
           Technical Version Framework
         </span>
-        <span className="nav-btn nav-btn-outline">
-          Expert Registration
-        </span>
+        {user ? (
+          <Link 
+            href={role === 'Nodal Team' ? '/dashboard' : '/assessments'} 
+            className="nav-btn nav-btn-outline"
+          >
+            {role === 'Nodal Team' ? 'Dashboard' : 'My Assessments'}
+          </Link>
+        ) : (
+          <span className="nav-btn nav-btn-outline">
+            Expert Registration
+          </span>
+        )}
 
         {user ? (
           <div className="flex items-center gap-2.5 pl-3 ml-1 border-l border-brand-border/40">
