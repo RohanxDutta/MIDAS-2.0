@@ -161,7 +161,9 @@ export default function DashboardClient({ initialUser }: { initialUser: any }) {
 
   // --- DEBOUNCED AUTOSAVE DRAFT ---
   useEffect(() => {
-    if (!user || !isFormLoaded.current) return;
+    if (!user || !isFormLoaded.current || step === 'success' || isSubmitting) return;
+
+    const abortController = new AbortController();
 
     const delayDebounce = setTimeout(() => {
       setDraftSaving(true);
@@ -191,6 +193,7 @@ export default function DashboardClient({ initialUser }: { initialUser: any }) {
             Authorization: `Bearer ${session.access_token}`,
           },
           body: JSON.stringify(draftPayload),
+          signal: abortController.signal,
         })
           .then((res) => res.json())
           .then(() => {
@@ -198,6 +201,10 @@ export default function DashboardClient({ initialUser }: { initialUser: any }) {
             setDraftStatus('Draft saved automatically');
           })
           .catch((err) => {
+            if (err.name === 'AbortError') {
+              console.log('Autosave aborted due to submission');
+              return;
+            }
             console.error(err);
             setDraftSaving(false);
             setDraftStatus('Failed to autosave draft');
@@ -205,7 +212,10 @@ export default function DashboardClient({ initialUser }: { initialUser: any }) {
       });
     }, 2000);
 
-    return () => clearTimeout(delayDebounce);
+    return () => {
+      clearTimeout(delayDebounce);
+      abortController.abort();
+    };
   }, [
     datasetTitle,
     versionDoiHandle,
@@ -557,7 +567,7 @@ export default function DashboardClient({ initialUser }: { initialUser: any }) {
     setUploadedFiles([]);
     setSubmissionResult(null);
     setStep('metadata');
-    isFormLoaded.current = false;
+    isFormLoaded.current = true;
     setDraftStatus('');
   };
 
