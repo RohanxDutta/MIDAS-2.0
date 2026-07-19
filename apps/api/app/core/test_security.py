@@ -74,8 +74,14 @@ payload_traversal = {
 response = requests.post(f"{base_url}/upload-url", json=payload_traversal, headers=auth_headers)
 print(f"Response status: {response.status_code}")
 res_json = response.json()
-print(f"Response storage path: {res_json.get('url') if res_json else 'None'}")
-print(f"Response body snippet: {str(res_json)[:150]}\n")
+upload_url = res_json.get("upload_url")
+print(f"Returned upload_url: {upload_url}")
+
+if upload_url:
+    print("Testing HTTP PUT upload to returned upload_url...")
+    upload_res = requests.put(upload_url, data=b"column1,column2\nval1,val2", headers={"Content-Type": "text/csv"})
+    print(f"PUT Upload status: {upload_res.status_code}")
+    print(f"PUT Upload response: {upload_res.text[:150]}\n")
 
 # 3. Test IDOR File Ownership / Non-existent File Linking check (Vulnerability A)
 print("3. Testing file linking ownership / IDOR check (expecting 400)...")

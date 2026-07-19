@@ -222,6 +222,27 @@ export default function DashboardClient({ initialUser }: { initialUser: any }) {
     user,
   ]);
 
+  // --- POST-UPLOAD FILE STATUS CHECK ---
+  const verifyFileStatus = async (fileId: string): Promise<string | null> => {
+    try {
+      const { data } = await supabase
+        .from('assessment_files')
+        .select('status')
+        .eq('id', fileId)
+        .maybeSingle();
+
+      if (data && data.status && data.status !== 'pending') {
+        setUploadedFiles((prev) =>
+          prev.map((f) => (f.id === fileId ? { ...f, status: data.status } : f))
+        );
+        return data.status;
+      }
+    } catch (err) {
+      console.error('Error verifying file status:', err);
+    }
+    return null;
+  };
+
   // --- SUPABASE REALTIME FILE LISTENERS ---
   const subscribeToFileStatus = (fileId: string) => {
     const channel = supabase
@@ -320,6 +341,17 @@ export default function DashboardClient({ initialUser }: { initialUser: any }) {
         if (!uploadRes.ok) {
           throw new Error('Storage file upload failed.');
         }
+
+        // Post-upload verification check & polling fallback
+        let attempts = 0;
+        const maxAttempts = 10;
+        const checkInterval = setInterval(async () => {
+          attempts++;
+          const currentStatus = await verifyFileStatus(file_id);
+          if (currentStatus || attempts >= maxAttempts) {
+            clearInterval(checkInterval);
+          }
+        }, 1000);
       } catch (err: any) {
         console.error('Upload error:', err);
         setUploadedFiles((prev) =>
