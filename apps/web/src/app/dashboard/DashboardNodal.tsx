@@ -1,12 +1,12 @@
 'use client'
 
-import { useState, useMemo, useEffect } from 'react'
+import { useState, useMemo, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
-import { Search, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight } from 'lucide-react'
+import { Search, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react'
 import { PortalPageLayout } from '@/components/portal/PortalPageLayout'
 import { supabase } from '@/lib/supabase'
-import { FAKE_SUBMISSIONS, STATUS_OPTIONS, type Submission, type SubmissionStatus } from './nodal-data'
+import { STATUS_OPTIONS, normalizeStatus, type Submission, type SubmissionStatus } from './nodal-data'
 
 type SortColumn = 'dataset_title' | 'date_of_assessment' | 'cqi_lite_score'
 type SortDir = 'asc' | 'desc'
@@ -64,6 +64,11 @@ export default function DashboardNodal({ initialUser }: { initialUser?: any }) {
   const [sortDir, setSortDir] = useState<SortDir>('desc')
   const [page, setPage] = useState(0)
 
+  // Live data state
+  const [submissions, setSubmissions] = useState<Submission[]>([])
+  const [isLoading, setIsLoading] = useState(true)
+  const [fetchError, setFetchError] = useState<string | null>(null)
+
   useEffect(() => {
     const {
       data: { subscription },
@@ -73,6 +78,60 @@ export default function DashboardNodal({ initialUser }: { initialUser?: any }) {
 
     return () => subscription.unsubscribe()
   }, [])
+
+  const hasFetchedOnce = useRef(false)
+
+  // Fetch live assessments from API
+  useEffect(() => {
+    async function fetchAssessments() {
+      if (!hasFetchedOnce.current) setIsLoading(true)
+      setFetchError(null)
+
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!session) {
+          window.location.href = '/login?error=session_expired'
+          return
+        }
+
+        const res = await fetch('/api/v1/assessments', {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        })
+
+        if (res.status === 401) {
+          await supabase.auth.signOut()
+          window.location.href = '/login?error=session_expired'
+          return
+        }
+
+        if (!res.ok) {
+          throw new Error(`Failed to fetch assessments: ${res.status}`)
+        }
+
+        const data = await res.json()
+
+        // Normalize status from DB format to UI format
+        const normalized: Submission[] = data.map((row: any) => ({
+          ...row,
+          id: String(row.id),
+          status: normalizeStatus(row.status || 'submitted'),
+          date_of_assessment: row.date_of_assessment || row.created_at?.split('T')[0] || '',
+        }))
+
+        setSubmissions(normalized)
+        hasFetchedOnce.current = true
+      } catch (err: any) {
+        console.error('Error fetching assessments:', err)
+        setFetchError(err.message || 'Failed to load assessments')
+      } finally {
+        setIsLoading(false)
+      }
+    }
+
+    if (user?.id) {
+      fetchAssessments()
+    }
+  }, [user?.id])
 
   const handleLogout = async () => {
     try {
@@ -95,7 +154,7 @@ export default function DashboardNodal({ initialUser }: { initialUser?: any }) {
   }
 
   const filtered = useMemo(() => {
-    let result = [...FAKE_SUBMISSIONS]
+    let result = [...submissions]
 
     if (statusFilter !== 'All') {
       result = result.filter((s) => s.status === statusFilter)
@@ -123,7 +182,7 @@ export default function DashboardNodal({ initialUser }: { initialUser?: any }) {
     })
 
     return result
-  }, [searchQuery, statusFilter, sortColumn, sortDir])
+  }, [searchQuery, statusFilter, sortColumn, sortDir, submissions])
 
   const totalPages = Math.max(1, Math.ceil(filtered.length / ROWS_PER_PAGE))
   const safePage = Math.min(page, totalPages - 1)
@@ -131,7 +190,7 @@ export default function DashboardNodal({ initialUser }: { initialUser?: any }) {
 
   return (
     <PortalPageLayout user={user} onLogout={handleLogout} showFooter={false}>
-      <section className="fade-up w-full max-w-6xl mx-auto !px-4 sm:!px-8 !py-5 flex-1 flex flex-col min-h-0 h-[calc(100vh-72px)] overflow-hidden">
+      <section className="w-full max-w-6xl mx-auto !px-4 sm:!px-8 !py-5 flex-1 flex flex-col min-h-0 h-[calc(100vh-72px)] overflow-hidden">
         <div className="mb-4 shrink-0">
           <h1 className="text-[24px] font-black text-brand-navy font-serif">Nodal Dashboard</h1>
           <p className="text-xs text-brand-slate font-semibold mt-0.5">
@@ -169,10 +228,28 @@ export default function DashboardNodal({ initialUser }: { initialUser?: any }) {
         </div>
 
         <div className="bg-white/90 backdrop-blur-md border border-brand-border rounded-[24px] shadow-[0_8px_30px_rgb(0,0,0,0.015)] flex flex-col min-h-0 flex-1 overflow-hidden">
-          {filtered.length === 0 ? (
+          {isLoading ? (
+            <div className="flex flex-col items-center justify-center flex-1 text-brand-slate">
+              <Loader2 className="w-8 h-8 animate-spin text-brand-blue mb-3" />
+              <p className="text-sm font-semibold">Loading assessments...</p>
+            </div>
+          ) : fetchError ? (
+            <div className="flex flex-col items-center justify-center flex-1 text-brand-slate">
+              <p className="text-sm font-semibold text-rose-600 mb-2">Failed to load assessments</p>
+              <p className="text-xs text-brand-slate">{fetchError}</p>
+              <button
+                onClick={() => window.location.reload()}
+                className="mt-3 px-4 py-1.5 text-xs font-semibold text-brand-blue border border-brand-blue rounded-full hover:bg-brand-blue/5 transition-all cursor-pointer"
+              >
+                Retry
+              </button>
+            </div>
+          ) : filtered.length === 0 ? (
             <div className="flex flex-col items-center justify-center flex-1 text-brand-slate">
               <Search className="w-10 h-10 mb-3 opacity-30" />
-              <p className="text-sm font-semibold">No submissions match your search.</p>
+              <p className="text-sm font-semibold">
+                {submissions.length === 0 ? 'No assessments submitted yet.' : 'No submissions match your search.'}
+              </p>
             </div>
           ) : (
             <>
@@ -219,11 +296,11 @@ export default function DashboardNodal({ initialUser }: { initialUser?: any }) {
                           {sub.submitting_pi_custodian}
                         </td>
                         <td className="px-4 py-3 text-sm text-brand-slate whitespace-nowrap">
-                          {new Date(sub.date_of_assessment).toLocaleDateString('en-IN', {
+                          {sub.date_of_assessment ? new Date(sub.date_of_assessment).toLocaleDateString('en-IN', {
                             day: '2-digit',
                             month: 'short',
                             year: 'numeric',
-                          })}
+                          }) : '—'}
                         </td>
                         <td className="px-4 py-3">
                           <StatusBadge status={sub.status} />
