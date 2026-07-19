@@ -107,7 +107,9 @@ midas-2.0/
 │   │           ├── security.py    # JWT verification, auth deps, RBAC
 │   │           ├── redis.py       # RedisDraftCache client (14-day TTL)
 │   │           ├── db.py          # SQLModel engine & session
-│   │           └── rate_limit.py  # Token bucket rate limiter (Lua script)
+│   │           ├── rate_limit.py  # Token bucket rate limiter (Lua script)
+│   │           └── test_security.py # Security test script (IDOR, path traversal)
+├── packages/
 │   └── database/             # Shared SQLModel schemas & Alembic migrations
 │       ├── alembic/
 │       │   ├── env.py
@@ -115,7 +117,8 @@ midas-2.0/
 │       │   └── versions/
 │       │       ├── 658ba24a208f_initial_schema_migration.py
 │       │       ├── 3f92085039ed_initial_schema_migration.py
-│       │       └── 0a29c7e5edae_add_user_id_to_assessmentfile.py
+│       │       ├── 0a29c7e5edae_add_user_id_to_assessmentfile.py
+│       │       └── b4e71a9c3d21_make_assessment_id_nullable.py
 │       ├── models/
 │       │   ├── __init__.py
 │       │   ├── assessment.py
@@ -126,8 +129,11 @@ midas-2.0/
 │       ├── run_migrations.py
 │       ├── setup_supabase_extras.py  # Storage bucket, webhook, realtime setup
 │       ├── deploy_rls_policies.py    # SQL Row-level security deployment
-│       ├── seed_nodal.py             # Nodal user seed script
-│       └── seed_user.py              # Standard user seed script
+│       ├── fix_storage_permissions.py # Repair script for broken Supabase Storage permissions
+│       ├── cleanup_expired_files.py  # Maintenance script to purge unlinked files older than 24h
+│       ├── reset_dev_database.py     # Script to reset and clean test database artifacts
+│       ├── seed_nodal.py             # Seeds nodal@gmail.com with role="nodal"
+│       └── seed_user.py              # Seeds user@gmail.com with role="user"
 ├── docker/
 │   ├── api.Dockerfile        # Python 3.11-slim container
 │   └── web.Dockerfile        # Node 20-alpine multi-stage build
@@ -186,6 +192,10 @@ midas-2.0/
 6. Deploy Row-Level Security policies on SQL tables:
    ```bash
    python packages/database/deploy_rls_policies.py
+   ```
+7. (Optional) Run the cleanup job for expired files/orphaned objects:
+   ```bash
+   python packages/database/cleanup_expired_files.py
    ```
 
 ---
@@ -285,3 +295,21 @@ def my_endpoint(user_id: str = Depends(get_current_user_id)):
 - Each user gets a separate bucket keyed as `rate_limit:{user_id}`.
 - If Redis is unreachable, cost-1 requests are allowed through (fail-open); cost-10 requests return **503 Service Unavailable** to prevent data corruption under load.
 - The Lua script refills tokens based on elapsed wall-clock time (`now - last_refill`) to ensure accurate throttling even if the endpoint is called irregularly.
+
+---
+
+## 10. Operations & Maintenance Scripts
+
+The `packages/database` and `apps/api/app/core` directories contain several Python utility scripts for environment maintenance and security testing:
+
+### Maintenance & Cleanup
+*   **`cleanup_expired_files.py`**: A database maintenance script intended to run periodically (e.g., via a daily cron job). It safely purges any abandoned, unlinked pending draft files (`assessment_id IS NULL`) older than 24 hours from both the `assessment_files` table and the `storage.objects` bucket.
+*   **`reset_dev_database.py`**: A developer utility that resets the database to a clean baseline by purging all test assessments, stuck pending uploads, and orphaned storage objects. It safely bypasses the `storage.protect_delete()` trigger by setting `storage.allow_delete_query = 'true'` within the transaction.
+
+### Security Audits & Repair
+*   **`test_security.py`**: An automated security test suite that verifies score boundary constraints (HTTP 422), filename path traversal sanitization, and IDOR/ownership checks for file linking.
+*   **`fix_storage_permissions.py`**: A database repair script that explicitly restores schema and table-level `SELECT, INSERT, UPDATE, DELETE` privileges across the `storage` and `net` schemas for `authenticated`, `anon`, and `service_role` roles. Used to resolve `403 Forbidden` and `42883 function does not exist` errors.
+
+### Database Seeding
+*   **`seed_nodal.py`**: Provisions the standard `nodal@gmail.com` account and attaches the `{"role": "nodal"}` claim via the Supabase Admin API.
+*   **`seed_user.py`**: Provisions the standard `user@gmail.com` account and attaches the `{"role": "user"}` claim.

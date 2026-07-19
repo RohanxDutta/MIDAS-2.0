@@ -33,13 +33,14 @@ To prevent CORS issues in development and production, Next.js acts as a reverse 
 
 To scale file uploads without memory/connection bottlenecks on the server, we use a direct-to-storage presigned URL and asynchronous webhook flow:
 
-1.  **Request Upload**: Browser asks FastAPI (`POST /api/v1/upload-url`) for a signed upload URL.
-2.  **Generate URL**: FastAPI requests Supabase Storage for a Presigned PUT URL and returns it to the browser.
+1.  **Request Upload**: Browser asks FastAPI (`POST /api/v1/upload-url`) for a signed upload URL. A pending `assessment_files` row is created with `assessment_id = None` (nullable).
+2.  **Generate URL**: FastAPI requests Supabase Storage for a Presigned PUT URL (formatted with the absolute `/storage/v1/` prefix) and returns it to the browser.
 3.  **Direct Upload**: Browser uploads the CSV file directly to Supabase Storage via `PUT`.
-4.  **Asynchronous Webhook**: Supabase PostgreSQL database fires a trigger (via the `pg_net` extension) to send a `POST` request directly to the FastAPI Webhook endpoint (`/api/v1/webhooks/storage`) when the file is successfully uploaded to `storage.objects`. The request is secured with a shared `WEBHOOK_SECRET` passed in the `x-webhook-secret` header.
+4.  **Asynchronous Webhook**: Supabase PostgreSQL database fires a trigger (via the `pg_net` extension with `timeout_milliseconds`) to send a `POST` request directly to the FastAPI Webhook endpoint (`/api/v1/webhooks/storage`) when the file is successfully uploaded to `storage.objects`. The request is secured with a shared `WEBHOOK_SECRET`.
 5.  **Validate**: FastAPI validates the webhook header secret, checks the uploaded file in Storage (validating that the extension is `.csv` and it is not empty), and updates the status of the file record.
-6.  **Real-Time Update**: The Next.js frontend listens to changes in `assessment_files` via **Supabase Realtime Subscriptions** to instantly show the validation status (success checkmark or empty-file error) to the user.
-    *   *Setup Automation*: The realtime publication subscription, storage bucket registration, trigger functions, and webhook setup are executed programmatically via `setup_supabase_extras.py`.
+6.  **Real-Time Update & Polling Fallback**: The Next.js frontend listens to changes in `assessment_files` via **Supabase Realtime Subscriptions** and simultaneously executes a 10-attempt, 1-second interval **polling fallback loop** (`verifyFileStatus`) to instantly show the validation status (success checkmark or empty-file error) and prevent UI race conditions.
+7.  **Data Lifecycle Cleanup**: Unlinked pending files (`assessment_id IS NULL`) are automatically deleted during the final form submission in `endpoints.py`, and abandoned files are purged via a 24-hour database/storage expiry script (`cleanup_expired_files.py`).
+    *   *Setup Automation*: The realtime publication subscription, storage bucket registration, schema table privileges (`setup_supabase_extras.py`), and RBAC/RLS policies (`deploy_rls_policies.py`) are executed programmatically.
 
 ---
 
@@ -114,7 +115,7 @@ erDiagram
     assessment_files {
         uuid id PK
         uuid user_id FK "ownership tracking"
-        uuid assessment_id FK
+        uuid assessment_id FK "Nullable"
         string file_name
         string storage_path
         int file_size
@@ -138,6 +139,7 @@ erDiagram
         *   **Release Category**: Looks up the 4x5 release matrix using the computed CQI Grade and PRS Risk Band.
     *   Scores and category are saved directly into the `assessments` table but **not** displayed on the user's frontend.
     *   FastAPI writes the finalized data permanently to PostgreSQL, associates the file records, and deletes the draft from Redis.
+    *   **Auto-Cleanup**: Deletes any remaining unlinked draft `assessment_files` (where `assessment_id IS NULL`) for the user to prevent orphaned data.
     *   Submitted assessments become read-only.
 3.  **Privacy & Access Control (Row-Level Security)**:
     *   **Route Guards**: Server-side Next.js middleware validates cookies and redirects unauthenticated traffic trying to access protected paths (like `/dashboard`) back to `/login`. Public routes `/` (Landing Page), `/lite-version`, and `/login` are accessible anonymously. Client-side state changes are synchronized via `AuthSessionWatcher`. If the active session is lost or if the draft API returns a 401, the client-side router redirects the user to `/login`.
