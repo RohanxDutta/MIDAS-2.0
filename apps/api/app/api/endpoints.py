@@ -382,3 +382,103 @@ def get_assessments(
     results = db.exec(statements).all()
     # Serialize SQLModel instances to dicts
     return [r.dict() for r in results]
+
+
+@protected_router.get("/assessments/{assessment_id}", dependencies=[Depends(rate_limiter_cost_1)])
+def get_assessment_detail(
+    assessment_id: UUID,
+    current_user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_session)
+):
+    """Returns full assessment detail with nested answers and files.
+    Nodal users can view any assessment. Standard users can only view their own.
+    """
+    assessment = db.exec(
+        select(Assessment).where(Assessment.id == assessment_id)
+    ).first()
+
+    if not assessment:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+
+    # Standard users can only view their own assessments
+    if current_user.role != "nodal" and str(assessment.user_id) != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
+
+    # Fetch related answers and files
+    answers = db.exec(
+        select(AssessmentAnswer).where(AssessmentAnswer.assessment_id == assessment_id)
+    ).all()
+
+    files = db.exec(
+        select(AssessmentFile).where(AssessmentFile.assessment_id == assessment_id)
+    ).all()
+
+    return {
+        **assessment.dict(),
+        "answers": [a.dict() for a in answers],
+        "files": [f.dict() for f in files],
+    }
+
+
+@protected_router.get("/assessments/{assessment_id}/download", dependencies=[Depends(rate_limiter_cost_1)])
+def download_assessment_file(
+    assessment_id: UUID,
+    current_user: CurrentUser = Depends(get_current_user),
+    db: Session = Depends(get_session)
+):
+    """Generates a presigned download URL for the assessment's uploaded file.
+    Nodal users can download any file. Standard users only their own.
+    """
+    assessment = db.exec(
+        select(Assessment).where(Assessment.id == assessment_id)
+    ).first()
+
+    if not assessment:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+
+    if current_user.role != "nodal" and str(assessment.user_id) != current_user.id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Forbidden")
+
+    # Find the first successfully uploaded file for this assessment
+    db_file = db.exec(
+        select(AssessmentFile).where(
+            AssessmentFile.assessment_id == assessment_id,
+            AssessmentFile.status == "success"
+        )
+    ).first()
+
+    if not db_file:
+        raise HTTPException(status_code=404, detail="No downloadable file found for this assessment")
+
+    # Generate a presigned download URL from Supabase Storage
+    supabase_download_url = f"{settings.NEXT_PUBLIC_SUPABASE_URL}/storage/v1/object/sign/private/{db_file.storage_path}"
+    headers = {
+        "Authorization": f"Bearer {settings.SUPABASE_SERVICE_ROLE_KEY}",
+        "Content-Type": "application/json"
+    }
+
+    try:
+        response = requests.post(
+            supabase_download_url,
+            json={"expiresIn": 60},
+            headers=headers
+        )
+        if response.status_code != 200:
+            raise HTTPException(status_code=500, detail=f"Failed to generate download URL: {response.text}")
+
+        data = response.json()
+        signed_url = data.get("signedURL", "")
+
+        # Build absolute URL
+        if signed_url.startswith("/"):
+            signed_url = f"{settings.NEXT_PUBLIC_SUPABASE_URL}/storage/v1{signed_url}"
+
+        return {
+            "download_url": signed_url,
+            "file_name": db_file.file_name,
+            "file_size": db_file.file_size,
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error generating download URL: {str(e)}")
