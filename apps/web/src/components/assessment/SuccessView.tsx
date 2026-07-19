@@ -91,7 +91,7 @@ export function SuccessView({
             Submission Metrics (Calculated on Backend)
           </span>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4.5 text-center">
-            <div className="bg-brand-bg-start/40 p-4 border border-brand-border/60 rounded-2xl shadow-2xs">
+            <div className="bg-brand-bg-start/40 p-4 border border-brand-border/60 rounded-[24px] shadow-2xs">
               <span className="text-brand-slate text-[10px] uppercase font-extrabold tracking-wider block">
                 CQI Grade
               </span>
@@ -99,7 +99,7 @@ export function SuccessView({
                 {submissionResult.cqi_grade}
               </span>
             </div>
-            <div className="bg-brand-bg-start/40 p-4 border border-brand-border/60 rounded-2xl shadow-2xs">
+            <div className="bg-brand-bg-start/40 p-4 border border-brand-border/60 rounded-[24px] shadow-2xs">
               <span className="text-brand-slate text-[10px] uppercase font-extrabold tracking-wider block">
                 PRS Risk Band
               </span>
@@ -107,7 +107,7 @@ export function SuccessView({
                 {submissionResult.prs_band}
               </span>
             </div>
-            <div className="bg-brand-bg-start/40 p-4 border border-brand-border/60 rounded-2xl shadow-2xs">
+            <div className="bg-brand-bg-start/40 p-4 border border-brand-border/60 rounded-[24px] shadow-2xs">
               <span className="text-brand-slate text-[10px] uppercase font-extrabold tracking-wider block">
                 Release Category
               </span>
@@ -124,7 +124,7 @@ export function SuccessView({
         <button
           type="button"
           onClick={() => window.print()}
-          className="px-6 py-3 bg-white hover:bg-brand-bg-start border border-brand-border hover:border-brand-slate/40 text-brand-navy font-bold rounded-xl transition-all flex items-center gap-2 cursor-pointer shadow-xs"
+          className="px-6 py-3 bg-white hover:bg-brand-bg-start border border-brand-border hover:border-brand-slate/40 text-brand-navy font-bold rounded-full transition-all flex items-center gap-2 cursor-pointer shadow-xs hover:-translate-y-[2px]"
         >
           <Printer className="w-4.5 h-4.5 text-brand-slate" />
           Print Report
@@ -133,7 +133,7 @@ export function SuccessView({
         <button
           type="button"
           onClick={onReset}
-          className="px-6 py-3 bg-brand-blue hover:bg-brand-blue-hover text-white font-bold rounded-xl transition-all flex items-center gap-2 cursor-pointer shadow-md shadow-brand-blue/10"
+          className="px-6 py-3 bg-brand-blue hover:bg-brand-blue-hover text-white font-bold rounded-full transition-all flex items-center gap-2 cursor-pointer shadow-md shadow-brand-blue/10 hover:-translate-y-[2px]"
         >
           <PlusCircle className="w-4.5 h-4.5" />
           New Assessment

@@ -66,7 +66,7 @@ export function ReviewForm({
 
       <div className="space-y-5">
         {/* Section A Summary */}
-        <div className="bg-brand-bg-start/20 border border-brand-border rounded-2xl p-5 space-y-4">
+        <div className="bg-brand-bg-start/20 border border-brand-border rounded-[24px] p-5 space-y-4">
           <div className="flex items-center gap-2 border-b border-brand-border pb-2">
             <FileText className="w-4 h-4 text-brand-blue shrink-0" />
             <span className="text-[10px] font-bold text-brand-navy uppercase tracking-wider">
@@ -110,7 +110,7 @@ export function ReviewForm({
         </div>
 
         {/* Section B Summary Check */}
-        <div className="bg-brand-bg-start/20 border border-brand-border rounded-2xl p-5 flex justify-between items-center text-sm">
+        <div className="bg-brand-bg-start/20 border border-brand-border rounded-[24px] p-5 flex justify-between items-center text-sm">
           <div className="flex items-center gap-3.5">
             <CheckCircle2 className="w-5.5 h-5.5 text-emerald-500 shrink-0" />
             <div className="flex flex-col">
@@ -128,7 +128,7 @@ export function ReviewForm({
         </div>
 
         {/* Section C Summary Check */}
-        <div className="bg-brand-bg-start/20 border border-brand-border rounded-2xl p-5 flex justify-between items-center text-sm">
+        <div className="bg-brand-bg-start/20 border border-brand-border rounded-[24px] p-5 flex justify-between items-center text-sm">
           <div className="flex items-center gap-3.5">
             <CheckCircle2 className="w-5.5 h-5.5 text-emerald-500 shrink-0" />
             <div className="flex flex-col">
@@ -144,7 +144,7 @@ export function ReviewForm({
         </div>
 
         {/* Section D Summary */}
-        <div className="bg-brand-bg-start/20 border border-brand-border rounded-2xl p-5 space-y-4">
+        <div className="bg-brand-bg-start/20 border border-brand-border rounded-[24px] p-5 space-y-4">
           <div className="flex items-center gap-2 border-b border-brand-border pb-2">
             <Upload className="w-4 h-4 text-brand-blue shrink-0" />
             <span className="text-[10px] font-bold text-brand-navy uppercase tracking-wider">
@@ -187,7 +187,7 @@ export function ReviewForm({
         </div>
 
         {/* Lock warning block */}
-        <div className="flex gap-4 p-4.5 bg-brand-blue/5 border border-brand-blue/20 rounded-2xl text-xs text-brand-blue leading-relaxed font-semibold">
+        <div className="flex gap-4 p-4.5 bg-brand-blue/5 border border-brand-blue/20 rounded-[24px] text-xs text-brand-blue leading-relaxed font-semibold">
           <Lock className="w-5.5 h-5.5 shrink-0 text-brand-blue" />
           <p>
             Submitting locks the assessment permanently on PostgreSQL, clears the Redis draft cache,

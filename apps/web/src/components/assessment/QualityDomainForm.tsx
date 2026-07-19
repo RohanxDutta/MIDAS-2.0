@@ -63,7 +63,7 @@ export function QualityDomainForm({
 
         {/* N/A Toggle for Domain 11 */}
         {domId === 11 && (
-          <div className="flex items-center gap-2 bg-brand-bg-start/50 border border-brand-border/60 rounded-lg px-3 py-1.5 hover:bg-brand-bg-start transition-all shrink-0">
+          <div className="flex items-center gap-2 bg-brand-bg-start/50 border border-brand-border/60 rounded-full px-3 py-1.5 hover:bg-brand-bg-start transition-all shrink-0">
             <input
               id="na-toggle-chk"
               type="checkbox"
@@ -108,7 +108,7 @@ export function QualityDomainForm({
                     key={scoreVal}
                     type="button"
                     onClick={() => handleScoreSelect(scoreVal)}
-                    className={`text-left py-3 px-4.5 rounded-xl border flex items-start gap-4 cursor-pointer focus:outline-none w-full transition-all duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] hover:-translate-y-[2px] hover:shadow-2xs ${
+                    className={`text-left py-3 px-4.5 rounded-full border flex items-start gap-4 cursor-pointer focus:outline-none w-full transition-all duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] hover:-translate-y-[2px] hover:shadow-2xs ${
                       isSelected
                         ? 'bg-brand-blue/[0.015] border-brand-blue ring-2 ring-brand-blue/8 shadow-3xs'
                         : 'bg-white border-brand-border hover:border-brand-blue/30'
@@ -149,7 +149,7 @@ export function QualityDomainForm({
               value={currentAnswer.factual_description}
               onChange={(e) => handleDescriptionChange(e.target.value)}
               placeholder="Describe details of dataset alignment with selected rubric level (Concise factual description required for assessment)..."
-              className="w-full bg-white border border-brand-border rounded-xl px-4 py-3 text-xs text-brand-navy placeholder-brand-slate/55 focus:outline-none focus:border-brand-blue focus:ring-1 focus:ring-brand-blue transition-all leading-relaxed shadow-3xs"
+              className="w-full bg-white border border-brand-border rounded-[14px] px-4 py-3 text-xs text-brand-navy placeholder-brand-slate/55 focus:outline-none focus:border-brand-blue/42 focus:ring-[3px] focus:ring-brand-blue/12 transition-all leading-relaxed shadow-3xs"
             />
           </div>
         </div>

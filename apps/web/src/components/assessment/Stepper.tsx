@@ -68,7 +68,7 @@ export function Stepper({
             return (
               <div
                 key={step.id}
-                className="flex flex-col items-center z-10 flex-grow mx-4 border border-brand-border/60 bg-brand-bg-start/35 rounded-2xl p-2.5 max-w-[500px] animate-fadeIn"
+                className="flex flex-col items-center z-10 flex-grow mx-4 border border-brand-border/60 bg-brand-bg-start/35 rounded-[24px] p-2.5 max-w-[500px] animate-fadeIn"
               >
                 {/* 15 inline micro-dots */}
                 <div className="flex items-center justify-between gap-1.5 w-full">

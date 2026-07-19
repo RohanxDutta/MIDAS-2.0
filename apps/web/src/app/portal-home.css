@@ -1,6 +1,8 @@
 /* Scoped Portal Home for Landing Page (Flat Scoped) */
-        .portal-home-page *, .portal-home-page *::before, .portal-home-page *::after {
-box-sizing: border-box; margin: 0; padding: 0;
+@layer base {
+  .portal-home-page *, .portal-home-page *::before, .portal-home-page *::after {
+    box-sizing: border-box; margin: 0; padding: 0;
+  }
 }
 :root {
 

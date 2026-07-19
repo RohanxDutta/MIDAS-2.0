@@ -67,11 +67,11 @@ export function DataUploadForm({
             <button
               type="button"
               onClick={() => setDatasetType('structured')}
-              className={`py-3.5 rounded-xl border font-bold text-sm transition-all flex items-center justify-center gap-2.5 cursor-pointer focus:outline-none ${
-                datasetType === 'structured'
-                  ? 'bg-brand-blue/[0.03] border-brand-blue text-brand-blue'
-                  : 'bg-white border-brand-border text-brand-slate hover:border-brand-slate/60'
-              }`}
+                className={`py-3.5 rounded-full border font-bold text-sm transition-all flex items-center justify-center gap-2.5 cursor-pointer focus:outline-none ${
+                  datasetType === 'structured'
+                    ? 'bg-brand-blue/[0.03] border-brand-blue text-brand-blue'
+                    : 'bg-white border-brand-border text-brand-slate hover:border-brand-slate/60'
+                }`}
             >
               <FileSpreadsheet className="w-4.5 h-4.5" />
               Structured CSV
@@ -79,11 +79,11 @@ export function DataUploadForm({
             <button
               type="button"
               onClick={() => setDatasetType('unstructured')}
-              className={`py-3.5 rounded-xl border font-bold text-sm transition-all flex items-center justify-center gap-2.5 cursor-pointer focus:outline-none ${
-                datasetType === 'unstructured'
-                  ? 'bg-brand-blue/[0.03] border-brand-blue text-brand-blue'
-                  : 'bg-white border-brand-border text-brand-slate hover:border-brand-slate/60'
-              }`}
+                className={`py-3.5 rounded-full border font-bold text-sm transition-all flex items-center justify-center gap-2.5 cursor-pointer focus:outline-none ${
+                  datasetType === 'unstructured'
+                    ? 'bg-brand-blue/[0.03] border-brand-blue text-brand-blue'
+                    : 'bg-white border-brand-border text-brand-slate hover:border-brand-slate/60'
+                }`}
             >
               <Link2 className="w-4.5 h-4.5" />
               Unstructured Link
@@ -112,7 +112,7 @@ export function DataUploadForm({
             {/* Drag & Drop Zone */}
             <div
               onClick={triggerFileSelect}
-              className="flex flex-col items-center justify-center w-full h-44 border-2 border-dashed border-brand-border hover:border-brand-blue/50 bg-brand-bg-start/10 hover:bg-brand-bg-start/30 rounded-2xl cursor-pointer transition-all duration-205 select-none"
+              className="flex flex-col items-center justify-center w-full h-44 border-2 border-dashed border-brand-border hover:border-brand-blue/50 bg-brand-bg-start/10 hover:bg-brand-bg-start/30 rounded-[24px] cursor-pointer transition-all duration-205 select-none"
             >
               <div className="flex flex-col items-center justify-center pt-5 pb-6">
                 <div className="w-11 h-11 rounded-full bg-brand-bg-start flex items-center justify-center text-brand-slate mb-3.5">
@@ -135,7 +135,7 @@ export function DataUploadForm({
 
             {/* Uploaded Files Table */}
             {uploadedFiles.length > 0 && (
-              <div className="border border-brand-border rounded-2xl overflow-hidden shadow-xs">
+              <div className="border border-brand-border rounded-[24px] overflow-hidden shadow-xs">
                 <div className="bg-brand-bg-start/60 px-5 py-3 border-b border-brand-border">
                   <span className="text-[10px] font-bold text-brand-navy uppercase tracking-wider">
                     Uploaded Files
@@ -185,7 +185,7 @@ export function DataUploadForm({
                         <button
                           type="button"
                           onClick={() => removeFile(file.id)}
-                          className="p-2 hover:bg-red-50 text-brand-slate hover:text-red-600 border border-transparent hover:border-red-100 rounded-lg transition-colors cursor-pointer"
+                          className="p-2 hover:bg-red-50 text-brand-slate hover:text-red-600 border border-transparent hover:border-red-100 rounded-full transition-colors cursor-pointer"
                           title="Remove file"
                         >
                           <Trash2 className="w-4 h-4" />

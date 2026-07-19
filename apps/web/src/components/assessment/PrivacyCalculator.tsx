@@ -79,7 +79,7 @@ export function PrivacyCalculator({
         </div>
 
         {/* Real-time score preview badge */}
-        <div className="bg-brand-navy text-white px-4 py-2 rounded-xl text-right">
+        <div className="bg-brand-navy text-white px-4 py-2 rounded-full text-right">
           <span className="text-[9px] font-bold text-brand-slate block uppercase tracking-widest leading-none">
             Estimated PRS
           </span>
@@ -101,14 +101,14 @@ export function PrivacyCalculator({
               const isSelected = identificationRisk === option.val;
               return (
                 <button
-                  key={option.val}
-                  type="button"
-                  onClick={() => setIdentificationRisk(option.val)}
-                  className={`text-left p-4 rounded-2xl border flex items-start gap-4 cursor-pointer focus:outline-none transition-all duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] hover:-translate-y-[2px] hover:shadow-xs ${
-                    isSelected
-                      ? 'bg-brand-blue/[0.015] border-brand-blue ring-2 ring-brand-blue/8 shadow-3xs'
-                      : 'bg-white border-brand-border hover:border-brand-blue/30'
-                  }`}
+                    key={option.val}
+                    type="button"
+                    onClick={() => setIdentificationRisk(option.val)}
+                    className={`text-left p-4 rounded-full border flex items-start gap-4 cursor-pointer focus:outline-none transition-all duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] hover:-translate-y-[2px] hover:shadow-xs ${
+                      isSelected
+                        ? 'bg-brand-blue/[0.015] border-brand-blue ring-2 ring-brand-blue/8 shadow-3xs'
+                        : 'bg-white border-brand-border hover:border-brand-blue/30'
+                    }`}
                 >
                   {/* Custom Radio Button */}
                   <span
@@ -149,14 +149,14 @@ export function PrivacyCalculator({
               const isSelected = sensitivityMultiplier === option.val;
               return (
                 <button
-                  key={option.val}
-                  type="button"
-                  onClick={() => setSensitivityMultiplier(option.val)}
-                  className={`text-left p-4 rounded-2xl border flex items-start gap-4 cursor-pointer focus:outline-none transition-all duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] hover:-translate-y-[2px] hover:shadow-xs ${
-                    isSelected
-                      ? 'bg-brand-blue/[0.015] border-brand-blue ring-2 ring-brand-blue/8 shadow-3xs'
-                      : 'bg-white border-brand-border hover:border-brand-blue/30'
-                  }`}
+                    key={option.val}
+                    type="button"
+                    onClick={() => setSensitivityMultiplier(option.val)}
+                    className={`text-left p-4 rounded-full border flex items-start gap-4 cursor-pointer focus:outline-none transition-all duration-200 ease-[cubic-bezier(0.16,1,0.3,1)] hover:-translate-y-[2px] hover:shadow-xs ${
+                      isSelected
+                        ? 'bg-brand-blue/[0.015] border-brand-blue ring-2 ring-brand-blue/8 shadow-3xs'
+                        : 'bg-white border-brand-border hover:border-brand-blue/30'
+                    }`}
                 >
                   {/* Custom Radio Button */}
                   <span
