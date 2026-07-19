@@ -17,7 +17,7 @@ The Lite Version of MIDAS 2.0 (Metric-based Integrity and Data Assessment System
 | **Auth** | Supabase Auth | Handles user registrations and logins (email/password). JWT verified server-side via Supabase Auth `/auth/v1/user` endpoint with service role key. |
 | **Draft Caching** | Redis | Temporary draft state auto-saver (hosted on Redis Cloud). Keys stored as `draft:{user_id}` with 14-day TTL. |
 | **Rate Limiting** | Token Bucket (Redis Lua Script) | Two tiers: cost=1 (20 capacity, 0.33 fill/s) for lightweight endpoints; cost=10 for `/submit`. Per-user keys `rate_limit:{user_id}`. Fail-open for cost=1 if Redis is down; returns 503 for cost=10. |
-| **Styling** | Tailwind CSS (v4) & Custom Scoped CSS | Responsive UI design using a Clinical Slate & Soft-Glass Accents theme for internal dashboard, with custom stylesheets `portal-home.css` and `portal-theme.css` scoped under `.portal-home-page` for public pages (preserving normal scrolling). |
+| **Styling** | Tailwind CSS (v4) & Custom Scoped CSS | Responsive UI design using a Clinical Slate & Soft-Glass Accents theme for internal dashboard, with custom stylesheets `portal-home.css` and `portal-theme.css` scoped under `.portal-home-page` for public pages (preserving normal scrolling). Global utility classes `.bg-portal` (gradient background) and `.card-portal` (glass-morphism card) defined in `globals.css`. |
 | **Validation** | HTML5 & Pydantic | Client-side UI checks and Server-side Pydantic validation. |
 | **Security Headers** | Next.js Middleware | CSP nonce (per-request), `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy`, `Permissions-Policy`. |
 | **Icons** | lucide-react | UI icon library. |
@@ -73,7 +73,6 @@ midas-2.0/
 │   │   ├── src/components/
 │   │   │   ├── assessment/   # Modular wizard components
 │   │   │   │   ├── LandingPage.tsx       # Marketing landing page content
-│   │   │   │   ├── Sidebar.tsx           # Left collapsable sidebar navigation
 │   │   │   │   ├── Stepper.tsx           # 5-step stepper with 15-domain expand
 │   │   │   │   ├── DatasetBasicsForm.tsx # Section A plain text metadata layout
 │   │   │   │   ├── QualityDomainForm.tsx # Section B rubric scores & justifications
@@ -82,7 +81,7 @@ midas-2.0/
 │   │   │   │   ├── ReviewForm.tsx        # Section E compiled inputs preview
 │   │   │   │   └── SuccessView.tsx       # Post-submission grades/scores display
 │   │   │   ├── portal/       # Reusable public layout components
-│   │   │   │   ├── PortalNav.tsx           # Public header navigation bar
+│   │   │   │   ├── PortalNav.tsx           # Auth-aware portal nav (avatar, role, logout when signed in)
 │   │   │   │   ├── PortalFooter.tsx        # Public footer component
 │   │   │   │   ├── PortalPageLayout.tsx    # Wrapper with IntersectionObserver
 │   │   │   │   ├── LiteVersionPage.tsx     # Portal-styled presentation page
