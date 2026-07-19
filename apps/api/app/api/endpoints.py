@@ -340,6 +340,19 @@ def submit_assessment(payload: SubmitInput, user_id: str = Depends(get_current_u
 
     db.commit()
 
+    # 7.5. Unconditional post-commit cleanup of remaining unlinked draft files for this user
+    unlinked_files = db.exec(
+        select(AssessmentFile).where(
+            AssessmentFile.user_id == UUID(user_id),
+            AssessmentFile.assessment_id == None
+        )
+    ).all()
+
+    if unlinked_files:
+        for unlinked in unlinked_files:
+            db.delete(unlinked)
+        db.commit()
+
     # 8. Clear Redis Draft Cache
     redis_drafts.clear_draft(user_id)
 
