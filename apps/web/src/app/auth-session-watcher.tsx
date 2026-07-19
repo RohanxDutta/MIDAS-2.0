@@ -13,7 +13,7 @@ export function AuthSessionWatcher({ children }: { children: React.ReactNode }) 
     initialized.current = true;
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-      if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+      if (event === 'SIGNED_IN') {
         router.refresh();
       }
     });
