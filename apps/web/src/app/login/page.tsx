@@ -6,6 +6,7 @@ import { supabase } from '@/lib/supabase';
 import { AlertCircle, Loader2, Eye, EyeOff, Mail, Lock } from 'lucide-react';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
+import { PortalNav } from '@/components/portal/PortalNav';
 
 export default function Login() {
   const router = useRouter();
@@ -89,24 +90,21 @@ export default function Login() {
   };
 
   return (
-    <div className="h-screen w-screen overflow-hidden flex items-center justify-center bg-gradient-to-tr from-brand-bg-end to-brand-bg-start relative select-none">
-      
-      {/* Brand Header */}
-      <div className="absolute top-8 left-8">
-        <span className="text-xl font-extrabold text-brand-navy tracking-tight">MIDAS 2.0</span>
-      </div>
+    <div className="portal-home-page h-screen w-screen overflow-hidden">
+      <PortalNav />
 
-      {/* Login Card */}
-      <div className="w-full max-w-[480px] bg-white border border-brand-border rounded-[24px] px-10 py-12 shadow-[0_8px_30px_rgb(0,0,0,0.03)] relative z-10 flex flex-col">
-        
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-extrabold text-brand-navy tracking-tight">
-            Welcome Back
-          </h1>
-          <p className="text-brand-slate text-sm font-medium mt-2">
-            Sign in to continue to MIDAS 2.0
-          </p>
-        </div>
+      {/* Login Card (centered in viewport below fixed nav) */}
+      <div className="flex items-center justify-center h-[calc(100vh-72px)] mt-[72px]">
+        <div className="w-full max-w-[480px] bg-white/90 backdrop-blur-md border border-brand-border rounded-[24px] px-10 py-12 shadow-[0_8px_30px_rgb(0,0,0,0.03)] flex flex-col">
+          
+          <div className="text-center mb-8">
+            <h1 className="text-3xl font-serif font-black text-brand-navy tracking-tight">
+              Welcome Back
+            </h1>
+            <p className="text-brand-slate text-sm font-medium mt-2">
+              Sign in to continue to MIDAS 2.0
+            </p>
+          </div>
 
         <form onSubmit={handleLogin} method="POST" className="space-y-5">
           <Input
@@ -149,7 +147,7 @@ export default function Login() {
           />
 
           {error && (
-            <div className="flex gap-2.5 bg-red-50 border border-red-200 rounded-lg p-3.5 text-xs text-red-600 font-medium">
+            <div className="flex gap-2.5 bg-red-50 border border-red-200 rounded-[14px] p-3.5 text-xs text-red-600 font-medium">
               <AlertCircle className="w-4.5 h-4.5 shrink-0 text-red-500" />
               <span>{error}</span>
             </div>
@@ -168,6 +166,7 @@ export default function Login() {
             )}
           </Button>
         </form>
+        </div>
       </div>
     </div>
   );

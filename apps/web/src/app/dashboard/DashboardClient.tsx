@@ -5,7 +5,7 @@ import { supabase } from '@/lib/supabase';
 import { domainsData } from '@/lib/domainsData';
 import { Loader2, CheckCircle2, ChevronLeft, ChevronRight } from 'lucide-react';
 
-import { Sidebar } from '@/components/assessment/Sidebar';
+import { PortalNav } from '@/components/portal/PortalNav';
 import { Stepper } from '@/components/assessment/Stepper';
 import { DatasetBasicsForm } from '@/components/assessment/DatasetBasicsForm';
 import { QualityDomainForm } from '@/components/assessment/QualityDomainForm';
@@ -24,9 +24,6 @@ interface FileUpload {
 export default function DashboardClient({ initialUser }: { initialUser: any }) {
   // --- AUTH STATE ---
   const [user, setUser] = useState<any>(initialUser);
-
-  // --- LAYOUT STATE ---
-  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
 
   // --- FORM STATE ---
   const [step, setStep] = useState<
@@ -546,7 +543,7 @@ export default function DashboardClient({ initialUser }: { initialUser: any }) {
   if (!user) {
     if (isLoggingOut.current) return null;
     return (
-      <div className="flex-1 flex flex-col items-center justify-center bg-slate-900 text-slate-100 min-h-screen">
+      <div className="flex-1 flex flex-col items-center justify-center bg-portal text-brand-navy min-h-screen">
         <Loader2 className="w-10 h-10 animate-spin text-brand-blue mb-4" />
         <p className="text-brand-slate text-sm font-semibold">Verifying session...</p>
       </div>
@@ -554,46 +551,13 @@ export default function DashboardClient({ initialUser }: { initialUser: any }) {
   }
 
   return (
-    <div className="flex bg-slate-50 h-screen w-screen overflow-hidden text-brand-navy">
-      {/* SIDEBAR */}
-      <Sidebar
-        user={user}
-        onLogout={handleLogout}
-        onGoHome={handleResetForm}
-        isCollapsed={isSidebarCollapsed}
-        onToggleCollapse={() => setIsSidebarCollapsed((prev) => !prev)}
-      />
+    <div className="portal-home-page h-screen w-screen overflow-hidden text-brand-navy">
+      <PortalNav user={user} onLogout={handleLogout} />
 
       {/* MAIN CONTENT WRAPPER */}
-      <div className="flex-1 flex flex-col h-screen overflow-hidden">
-        {/* BREATHABLE COMPACT HEADER */}
-        <header className="h-20 border-b border-brand-border bg-white flex justify-between items-center px-10 shrink-0 select-none print:hidden z-30">
-          <div className="flex flex-col">
-            <h1 className="text-lg font-serif font-black text-brand-navy tracking-tight leading-none">
-              New Assessment
-            </h1>
-            <span className="text-xs font-semibold text-brand-slate mt-2 leading-none">
-              Submit your dataset for automated quality evaluation.
-            </span>
-          </div>
-
-          {/* Draft Autosave Status Indicator */}
-          <div className="flex items-center gap-3">
-            {draftStatus && (
-              <span className="text-xs font-bold text-brand-slate flex items-center gap-1.5 bg-brand-bg-start border border-brand-border px-3 py-1.5 rounded-full shadow-2xs">
-                {draftSaving ? (
-                  <Loader2 className="w-3.5 h-3.5 animate-spin text-brand-blue" />
-                ) : (
-                  <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
-                )}
-                {draftStatus}
-              </span>
-            )}
-          </div>
-        </header>
-
-        {/* WORKSPACE AREA (pinned header/stepper/footer, scrollable card) */}
-        <div className="flex-grow px-10 py-5 flex flex-col items-center justify-between h-[calc(100vh-5rem)] overflow-hidden">
+      <div className="flex flex-col w-full h-full overflow-hidden pt-[72px]">
+        {/* WORKSPACE AREA (stepper/footer, scrollable card) */}
+        <div className="flex-grow px-10 py-5 flex flex-col items-center justify-between overflow-hidden min-h-0">
           {step === 'success' ? (
             <div className="flex-grow overflow-y-auto no-scrollbar w-full flex justify-center items-start py-4">
               <SuccessView
@@ -623,7 +587,7 @@ export default function DashboardClient({ initialUser }: { initialUser: any }) {
               </div>
 
               {/* CARD-BASED CONTENT (Scrollable Internally) */}
-              <div className="flex-grow overflow-y-auto no-scrollbar bg-white border border-brand-border rounded-[24px] p-8 shadow-[0_8px_30px_rgb(0,0,0,0.015)]">
+              <div className="flex-grow overflow-y-auto no-scrollbar bg-white/90 backdrop-blur-md border border-brand-border rounded-[24px] p-8 shadow-[0_8px_30px_rgb(0,0,0,0.015)]">
                 {step === 'metadata' && (
                   <DatasetBasicsForm
                     datasetTitle={datasetTitle}
@@ -702,7 +666,7 @@ export default function DashboardClient({ initialUser }: { initialUser: any }) {
                         handleResetForm();
                       }
                     }}
-                    className="px-5 py-2.5 border border-brand-border hover:border-brand-slate bg-white text-brand-slate hover:text-brand-navy font-semibold text-sm rounded-xl transition-all cursor-pointer shadow-2xs"
+                    className="px-5 py-2.5 border border-brand-border hover:border-brand-slate bg-white text-brand-slate hover:text-brand-navy font-semibold text-sm rounded-full transition-all cursor-pointer shadow-2xs hover:-translate-y-[2px]"
                   >
                     Cancel
                   </button>
@@ -710,20 +674,30 @@ export default function DashboardClient({ initialUser }: { initialUser: any }) {
                   <button
                     type="button"
                     onClick={handleBackClick}
-                    className="px-5 py-2.5 border border-brand-border hover:border-brand-slate bg-white text-brand-slate hover:text-brand-navy font-semibold text-sm rounded-xl transition-all flex items-center gap-2 cursor-pointer shadow-2xs"
+                    className="px-5 py-2.5 border border-brand-border hover:border-brand-slate bg-white text-brand-slate hover:text-brand-navy font-semibold text-sm rounded-full transition-all flex items-center gap-2 cursor-pointer shadow-2xs hover:-translate-y-[2px]"
                   >
                     <ChevronLeft className="w-4 h-4" /> Back
                   </button>
                 )}
 
                 {/* Save Draft & Action Buttons */}
-                <div className="flex gap-4">
+                <div className="flex gap-4 items-center">
+                  {draftStatus && (
+                    <span className="text-xs font-bold text-brand-slate flex items-center gap-1.5 bg-brand-bg-start border border-brand-border px-3 py-1.5 rounded-full shrink-0">
+                      {draftSaving ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin text-brand-blue" />
+                      ) : (
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-500" />
+                      )}
+                      {draftStatus}
+                    </span>
+                  )}
                   {step !== 'review' && (
                     <button
                       type="button"
                       onClick={handleSaveDraftClick}
                       disabled={draftSaving}
-                      className="px-5 py-2.5 border border-brand-border hover:border-brand-slate bg-white text-brand-navy font-semibold text-sm rounded-xl transition-all cursor-pointer shadow-2xs disabled:opacity-50"
+                      className="px-5 py-2.5 border border-brand-border hover:border-brand-slate bg-white text-brand-navy font-semibold text-sm rounded-full transition-all cursor-pointer shadow-2xs hover:-translate-y-[2px] disabled:opacity-50 disabled:hover:translate-y-0"
                     >
                       Save Draft
                     </button>
@@ -739,7 +713,7 @@ export default function DashboardClient({ initialUser }: { initialUser: any }) {
                         !isAllDomainsComplete() ||
                         !isSectionDComplete()
                       }
-                      className="px-6 py-2.5 bg-brand-blue hover:bg-brand-blue-hover disabled:bg-brand-bg-end disabled:text-brand-slate text-white font-semibold text-sm rounded-xl transition-all flex items-center justify-center gap-2 shadow-md shadow-brand-blue/10 cursor-pointer disabled:cursor-not-allowed disabled:shadow-none"
+                      className="px-6 py-2.5 bg-brand-blue hover:bg-brand-blue-hover disabled:bg-brand-bg-end disabled:text-brand-slate text-white font-semibold text-sm rounded-full transition-all flex items-center justify-center gap-2 shadow-md shadow-brand-blue/10 cursor-pointer hover:-translate-y-[2px] disabled:cursor-not-allowed disabled:shadow-none disabled:hover:translate-y-0"
                     >
                       {isSubmitting ? (
                         <>
@@ -765,7 +739,7 @@ export default function DashboardClient({ initialUser }: { initialUser: any }) {
                           ? !isSectionDComplete()
                           : false
                       }
-                      className="px-5 py-2.5 bg-brand-blue hover:bg-brand-blue-hover disabled:bg-brand-bg-end disabled:text-brand-slate text-white font-semibold text-sm rounded-xl transition-all flex items-center justify-center gap-2 shadow-md shadow-brand-blue/10 cursor-pointer disabled:cursor-not-allowed disabled:shadow-none"
+                      className="px-5 py-2.5 bg-brand-blue hover:bg-brand-blue-hover disabled:bg-brand-bg-end disabled:text-brand-slate text-white font-semibold text-sm rounded-full transition-all flex items-center justify-center gap-2 shadow-md shadow-brand-blue/10 cursor-pointer hover:-translate-y-[2px] disabled:cursor-not-allowed disabled:shadow-none disabled:hover:translate-y-0"
                     >
                       Next <ChevronRight className="w-4 h-4" />
                     </button>

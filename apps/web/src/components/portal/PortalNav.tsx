@@ -1,6 +1,22 @@
 import Link from 'next/link';
+import { LogOut } from 'lucide-react';
 
-export function PortalNav() {
+interface PortalNavProps {
+  user?: { email: string; user_metadata?: { role?: string } } | null;
+  onLogout?: () => void;
+}
+
+export function PortalNav({ user, onLogout }: PortalNavProps) {
+  const getInitials = (email: string) => {
+    if (!email) return 'U';
+    const parts = email.split('@')[0];
+    if (parts.length <= 2) return parts.toUpperCase();
+    return parts.substring(0, 2).toUpperCase();
+  };
+
+  const initials = user ? getInitials(user.email) : '';
+  const role = user?.user_metadata?.role === 'nodal' ? 'Nodal Team' : 'Data Custodian';
+
   return (
     <nav>
       <Link href="/" className="nav-left">
@@ -24,9 +40,31 @@ export function PortalNav() {
         <span className="nav-btn nav-btn-outline">
           Expert Registration
         </span>
-        <Link href="/login" className="nav-btn nav-btn-outline">
-          Expert Login
-        </Link>
+
+        {user ? (
+          <div className="flex items-center gap-2.5 pl-3 ml-1 border-l border-brand-border/40">
+            <div className="w-8 h-8 rounded-full bg-brand-navy flex items-center justify-center text-white text-[10px] font-bold shadow-xs shrink-0">
+              {initials}
+            </div>
+            <div className="flex flex-col min-w-0 max-w-[130px]">
+              <span className="text-[11px] font-bold text-brand-navy truncate leading-tight">{user.email}</span>
+              <span className="text-[8px] font-extrabold text-brand-blue uppercase tracking-wider">{role}</span>
+            </div>
+            {onLogout && (
+              <button
+                onClick={onLogout}
+                className="nav-btn text-brand-slate hover:text-red-600 hover:bg-red-50 cursor-pointer"
+                title="Logout"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+        ) : (
+          <Link href="/login" className="nav-btn nav-btn-outline">
+            Expert Login
+          </Link>
+        )}
       </div>
     </nav>
   );
