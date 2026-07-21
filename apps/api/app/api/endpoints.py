@@ -15,7 +15,7 @@ from models.file import AssessmentFile
 # Security & Utilities
 from core.db import get_session
 from core.redis import redis_drafts
-from core.security import get_current_user_id, get_current_user, CurrentUser
+from core.security import get_current_user_id, get_current_user, CurrentUser, require_nodal
 from core.config import settings
 from core.rate_limit import TokenBucketRateLimiter
 
@@ -69,6 +69,25 @@ class SubmitInput(BaseModel):
 class UploadUrlInput(BaseModel):
     file_name: str
     file_size: int
+
+# --- NODAL REVIEW SCHEMAS ---
+
+class ReviewItemInput(BaseModel):
+    domain_id: int = PydanticField(ge=1, le=15)
+    review_status: str
+    reviewer_remarks: Optional[str] = None
+
+class SaveReviewInput(BaseModel):
+    reviews: List[ReviewItemInput]
+
+class SubmitReviewInput(BaseModel):
+    reviews: List[ReviewItemInput]
+    assessment_status: str
+
+# --- VALIDATION CONSTANTS ---
+
+VALID_REVIEW_STATUSES = {"okay", "needs_revision"}
+VALID_ASSESSMENT_STATUSES = {"approved", "revision_required"}
 
 # --- API ENDPOINTS ---
 
@@ -482,3 +501,107 @@ def download_assessment_file(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error generating download URL: {str(e)}")
+
+
+@protected_router.put("/assessments/{assessment_id}/review", dependencies=[Depends(rate_limiter_cost_1)])
+def save_review(
+    assessment_id: UUID,
+    payload: SaveReviewInput,
+    _: CurrentUser = Depends(require_nodal),
+    db: Session = Depends(get_session),
+):
+    """Saves per-question review status and remarks in-progress (assessment-level status unchanged)."""
+    assessment = db.exec(
+        select(Assessment).where(Assessment.id == assessment_id)
+    ).first()
+
+    if not assessment:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+
+    existing_answers = {
+        a.domain_id: a
+        for a in db.exec(
+            select(AssessmentAnswer).where(AssessmentAnswer.assessment_id == assessment_id)
+        ).all()
+    }
+
+    for item in payload.reviews:
+        if item.domain_id not in existing_answers:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Domain {item.domain_id} does not exist in this assessment",
+            )
+        if item.review_status not in VALID_REVIEW_STATUSES:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Invalid review_status '{item.review_status}'. Must be 'okay' or 'needs_revision'",
+            )
+        answer = existing_answers[item.domain_id]
+        answer.review_status = item.review_status
+        answer.reviewer_remarks = item.reviewer_remarks
+        db.add(answer)
+
+    db.commit()
+
+    return {"status": "success", "message": "Review saved"}
+
+
+@protected_router.post("/assessments/{assessment_id}/review/submit", dependencies=[Depends(rate_limiter_cost_1)])
+def submit_review(
+    assessment_id: UUID,
+    payload: SubmitReviewInput,
+    _: CurrentUser = Depends(require_nodal),
+    db: Session = Depends(get_session),
+):
+    """Finalises the review: saves per-question review data and updates assessment-level status."""
+    assessment = db.exec(
+        select(Assessment).where(Assessment.id == assessment_id)
+    ).first()
+
+    if not assessment:
+        raise HTTPException(status_code=404, detail="Assessment not found")
+
+    if assessment.status in VALID_ASSESSMENT_STATUSES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Assessment has already been reviewed. Current status: '{assessment.status}'",
+        )
+
+    if payload.assessment_status not in VALID_ASSESSMENT_STATUSES:
+        raise HTTPException(
+            status_code=422,
+            detail=f"Invalid assessment_status '{payload.assessment_status}'. Must be 'approved' or 'revision_required'",
+        )
+
+    existing_answers = {
+        a.domain_id: a
+        for a in db.exec(
+            select(AssessmentAnswer).where(AssessmentAnswer.assessment_id == assessment_id)
+        ).all()
+    }
+
+    for item in payload.reviews:
+        if item.domain_id not in existing_answers:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Domain {item.domain_id} does not exist in this assessment",
+            )
+        if item.review_status not in VALID_REVIEW_STATUSES:
+            raise HTTPException(
+                status_code=422,
+                detail=f"Invalid review_status '{item.review_status}'. Must be 'okay' or 'needs_revision'",
+            )
+        answer = existing_answers[item.domain_id]
+        answer.review_status = item.review_status
+        answer.reviewer_remarks = item.reviewer_remarks
+        db.add(answer)
+
+    assessment.status = payload.assessment_status
+    db.add(assessment)
+    db.commit()
+
+    return {
+        "status": "success",
+        "message": "Review submitted",
+        "new_status": assessment.status,
+    }
