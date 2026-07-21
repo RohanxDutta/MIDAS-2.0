@@ -1,3 +1,4 @@
+from typing import Optional
 from uuid import UUID, uuid4
 from sqlmodel import SQLModel, Field, Relationship
 
@@ -11,6 +12,10 @@ class AssessmentAnswer(SQLModel, table=True):
     domain_id: int = Field(nullable=False) # 1 to 15
     score: int = Field(nullable=False)     # 0 to 4 (representing selected choice)
     factual_description: str = Field(nullable=False) # Supporting description textbox
+
+    # Nodal Review Fields
+    review_status: Optional[str] = Field(default=None, nullable=True) # "okay" | "needs_revision" | None
+    reviewer_remarks: Optional[str] = Field(default=None, nullable=True) # Nodal's remarks for yellow-marked questions
 
     # Relationships
     assessment: "Assessment" = Relationship(back_populates="answers")
