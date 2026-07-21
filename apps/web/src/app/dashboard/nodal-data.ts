@@ -17,7 +17,13 @@ export interface Submission {
   version_doi_handle: string
   created_at: string
   // Nested relations (only on detail page)
-  answers?: { domain_id: number; score: number; factual_description: string }[]
+  answers?: {
+    domain_id: number
+    score: number
+    factual_description: string
+    review_status: string | null
+    reviewer_remarks: string | null
+  }[]
   files?: { id: string; file_name: string; storage_path: string; file_size: number; status: string }[]
 }
 

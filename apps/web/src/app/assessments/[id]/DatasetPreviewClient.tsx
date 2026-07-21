@@ -235,16 +235,9 @@ export default function DatasetPreviewClient({
                   </span>
                 </div>
               </div>
-              <div className="flex items-center gap-3">
-                {assessment.cqi_lite_score !== null && (
-                  <span className="text-xs font-bold text-brand-blue bg-brand-blue/10 border border-brand-blue/20 px-3 py-1 rounded-full shrink-0">
-                    CQI Grade: {assessment.cqi_lite_grade} ({assessment.cqi_lite_score.toFixed(1)})
-                  </span>
-                )}
-                <span className="text-xs font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full shrink-0">
-                  {answeredDomainsCount}/15 Complete
-                </span>
-              </div>
+              <span className="text-xs font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full shrink-0">
+                {answeredDomainsCount}/15 Complete
+              </span>
             </div>
 
             {/* Section C Summary Check */}
@@ -254,12 +247,12 @@ export default function DatasetPreviewClient({
                 <div className="flex flex-col">
                   <span className="font-bold text-brand-navy">Section C: Privacy Configurations</span>
                   <span className="text-xs font-semibold text-brand-slate mt-0.5">
-                    PRS Lite Score: {assessment.prs_lite_score ?? 'N/A'} · Risk Band: {assessment.prs_lite_risk_band ?? 'N/A'}
+                    Privacy configuration recorded
                   </span>
                 </div>
               </div>
               <span className="text-xs font-bold text-emerald-600 bg-emerald-50 border border-emerald-200 px-3 py-1 rounded-full shrink-0">
-                Calculated
+                Configured
               </span>
             </div>
 

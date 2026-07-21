@@ -8,7 +8,7 @@ import { PortalPageLayout } from '@/components/portal/PortalPageLayout'
 import { supabase } from '@/lib/supabase'
 import { STATUS_OPTIONS, normalizeStatus, type Submission, type SubmissionStatus } from '@/app/dashboard/nodal-data'
 
-type SortColumn = 'dataset_title' | 'date_of_assessment' | 'cqi_lite_score'
+type SortColumn = 'dataset_title' | 'date_of_assessment'
 type SortDir = 'asc' | 'desc'
 
 const STATUS_COLORS: Record<SubmissionStatus, string> = {
@@ -175,8 +175,6 @@ export default function AssessmentsClient({ initialUser }: { initialUser?: any }
         cmp = a.dataset_title.localeCompare(b.dataset_title)
       } else if (sortColumn === 'date_of_assessment') {
         cmp = a.date_of_assessment.localeCompare(b.date_of_assessment)
-      } else {
-        cmp = (a.cqi_lite_score ?? 0) - (b.cqi_lite_score ?? 0)
       }
       return sortDir === 'asc' ? cmp : -cmp
     })
@@ -272,9 +270,6 @@ export default function AssessmentsClient({ initialUser }: { initialUser?: any }
                       <th className="sticky top-0 bg-white z-10 text-left px-4 py-3 text-xs font-semibold uppercase tracking-wider text-brand-slate">
                         Status
                       </th>
-                      <th className="sticky top-0 bg-white z-10 text-left px-4 py-3">
-                        <SortHeader column="cqi_lite_score" current={sortColumn} direction={sortDir} label="Quality Score" onSort={handleSort} />
-                      </th>
                     </tr>
                   </thead>
                   <tbody>
@@ -304,20 +299,6 @@ export default function AssessmentsClient({ initialUser }: { initialUser?: any }
                         </td>
                         <td className="px-4 py-3">
                           <StatusBadge status={sub.status} />
-                        </td>
-                        <td className="px-4 py-3">
-                          {sub.cqi_lite_score !== null ? (
-                            <div className="flex items-center gap-2">
-                              <span className="text-sm font-bold text-brand-navy">
-                                {sub.cqi_lite_score.toFixed(1)}
-                              </span>
-                              <span className="text-[10px] font-extrabold uppercase tracking-wide text-brand-slate">
-                                {sub.cqi_lite_grade}
-                              </span>
-                            </div>
-                          ) : (
-                            <span className="text-sm text-brand-slate italic">—</span>
-                          )}
                         </td>
                       </tr>
                     ))}

@@ -59,32 +59,17 @@ export function PrivacyCalculator({
     },
   ];
 
-  // Computed raw preview
-  const rawScore = Math.min(100, Math.round(identificationRisk * sensitivityMultiplier));
-
   return (
     <div className="w-full flex flex-col">
       {/* Header */}
-      <div className="flex items-center justify-between gap-4 mb-8 pb-6 border-b border-brand-border/60">
-        <div className="flex items-center gap-3.5">
-          <div className="w-12 h-12 rounded-xl bg-brand-blue/10 flex items-center justify-center text-brand-blue shrink-0">
-            <ShieldAlert className="w-6 h-6" />
-          </div>
-          <div className="flex flex-col">
-            <h2 className="text-xl font-extrabold text-brand-navy tracking-tight">Privacy & Governance</h2>
-            <span className="text-xs font-semibold text-brand-slate mt-0.5">
-              Configure parameters to calculate the Privacy-Risk Score (PRS-Lite).
-            </span>
-          </div>
+      <div className="flex items-center gap-4 mb-8 pb-6 border-b border-brand-border/60">
+        <div className="w-12 h-12 rounded-xl bg-brand-blue/10 flex items-center justify-center text-brand-blue shrink-0">
+          <ShieldAlert className="w-6 h-6" />
         </div>
-
-        {/* Real-time score preview badge */}
-        <div className="bg-brand-navy text-white px-4 py-2 rounded-full text-right">
-          <span className="text-[9px] font-bold text-brand-slate block uppercase tracking-widest leading-none">
-            Estimated PRS
-          </span>
-          <span className="text-base font-black leading-none mt-1 block">
-            {rawScore} / 100
+        <div className="flex flex-col">
+          <h2 className="text-xl font-extrabold text-brand-navy tracking-tight">Privacy & Governance</h2>
+          <span className="text-xs font-semibold text-brand-slate mt-0.5">
+            Configure privacy and governance parameters for the assessment.
           </span>
         </div>
       </div>

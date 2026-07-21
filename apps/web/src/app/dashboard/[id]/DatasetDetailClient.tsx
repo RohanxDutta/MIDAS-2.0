@@ -17,8 +17,11 @@ import {
   Lock,
   CheckCircle2,
   Loader2,
+  MessageSquare,
+  Save,
+  X,
 } from 'lucide-react'
-import { PortalPageLayout } from '@/components/portal/PortalPageLayout'
+import { PortalNav } from '@/components/portal/PortalNav'
 import { supabase } from '@/lib/supabase'
 import { normalizeStatus, type Submission, type SubmissionStatus } from '../nodal-data'
 import { domainsData } from '@/lib/domainsData'
@@ -46,10 +49,22 @@ export default function DatasetDetailClient({ id, initialUser }: DatasetDetailCl
   const [user, setUser] = useState<any>(initialUser)
   const [isDownloading, setIsDownloading] = useState(false)
 
+  // Determine back navigation dynamically
+  const isNodal = (user?.app_metadata?.role ?? user?.user_metadata?.role) === 'nodal'
+  const backLink = isNodal ? '/dashboard' : '/assessments'
+  const backText = isNodal ? 'Back to Nodal Dashboard' : 'Back to My Assessments'
+
   // Live data state
   const [assessment, setAssessment] = useState<Submission | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [fetchError, setFetchError] = useState<string | null>(null)
+
+  // Nodal review state
+  const [reviewState, setReviewState] = useState<Record<number, { review_status: string | null; reviewer_remarks: string | null }>>({})
+  const [isSaving, setIsSaving] = useState(false)
+  const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
+  const [showSubmitDialog, setShowSubmitDialog] = useState(false)
+  const initializedReview = useRef(false)
 
   useEffect(() => {
     const {
@@ -165,29 +180,35 @@ export default function DatasetDetailClient({ id, initialUser }: DatasetDetailCl
   // Loading state
   if (isLoading) {
     return (
-      <PortalPageLayout user={user} onLogout={handleLogout} showFooter={false}>
-        <section className="w-full max-w-6xl mx-auto !px-4 sm:!px-8 !py-5 flex-1 flex flex-col items-center justify-center min-h-0 h-[calc(100vh-72px)]">
-          <Loader2 className="w-8 h-8 animate-spin text-brand-blue mb-3" />
-          <p className="text-sm font-semibold text-brand-slate">Loading assessment details...</p>
-        </section>
-      </PortalPageLayout>
+      <div className="portal-home-page h-screen w-screen overflow-hidden bg-portal text-brand-navy">
+        <PortalNav user={user} onLogout={handleLogout} />
+        <div className="flex flex-col w-full h-full overflow-hidden pt-[72px]">
+          <section className="w-full max-w-6xl mx-auto !px-4 sm:!px-8 !py-5 flex-1 flex flex-col items-center justify-center min-h-0">
+            <Loader2 className="w-8 h-8 animate-spin text-brand-blue mb-3" />
+            <p className="text-sm font-semibold text-brand-slate">Loading assessment details...</p>
+          </section>
+        </div>
+      </div>
     )
   }
 
   // Error state
   if (fetchError || !assessment) {
     return (
-      <PortalPageLayout user={user} onLogout={handleLogout} showFooter={false}>
-        <section className="w-full max-w-6xl mx-auto !px-4 sm:!px-8 !py-5 flex-1 flex flex-col items-center justify-center min-h-0 h-[calc(100vh-72px)]">
-          <p className="text-sm font-semibold text-rose-600 mb-2">{fetchError || 'Assessment not found'}</p>
-          <Link
-            href="/dashboard"
-            className="mt-3 px-4 py-1.5 text-xs font-semibold text-brand-blue border border-brand-blue rounded-full hover:bg-brand-blue/5 transition-all cursor-pointer inline-flex items-center gap-1.5"
-          >
-            <ChevronLeft className="w-3.5 h-3.5" /> Back to Dashboard
-          </Link>
-        </section>
-      </PortalPageLayout>
+      <div className="portal-home-page h-screen w-screen overflow-hidden bg-portal text-brand-navy">
+        <PortalNav user={user} onLogout={handleLogout} />
+        <div className="flex flex-col w-full h-full overflow-hidden pt-[72px]">
+          <section className="w-full max-w-6xl mx-auto !px-4 sm:!px-8 !py-5 flex-1 flex flex-col items-center justify-center min-h-0">
+            <p className="text-sm font-semibold text-rose-600 mb-2">{fetchError || 'Assessment not found'}</p>
+            <Link
+              href={backLink}
+              className="mt-3 px-4 py-1.5 text-xs font-semibold text-brand-blue border border-brand-blue rounded-full hover:bg-brand-blue/5 transition-all cursor-pointer inline-flex items-center gap-1.5"
+            >
+              <ChevronLeft className="w-3.5 h-3.5" /> {backText}
+            </Link>
+          </section>
+        </div>
+      </div>
     )
   }
 
@@ -206,17 +227,146 @@ export default function DatasetDetailClient({ id, initialUser }: DatasetDetailCl
     }
   }
 
+  // Initialize reviewState from API data on first load
+  if (assessment.answers && !initializedReview.current) {
+    const initialReviewState: Record<number, { review_status: string | null; reviewer_remarks: string | null }> = {}
+    for (const ans of assessment.answers) {
+      initialReviewState[ans.domain_id] = {
+        review_status: ans.review_status ?? null,
+        reviewer_remarks: ans.reviewer_remarks ?? null,
+      }
+    }
+    setReviewState(initialReviewState)
+    initializedReview.current = true
+  }
+
+  // Nodal review handlers
+  const handleReviewStatus = (domainId: number, status: string) => {
+    setReviewState((prev) => ({
+      ...prev,
+      [domainId]: {
+        review_status: status,
+        reviewer_remarks: status === 'okay' ? null : (prev[domainId]?.reviewer_remarks ?? null),
+      },
+    }))
+  }
+
+  const handleReviewRemarks = (domainId: number, remarks: string) => {
+    setReviewState((prev) => ({
+      ...prev,
+      [domainId]: {
+        ...prev[domainId],
+        reviewer_remarks: remarks,
+      },
+    }))
+  }
+
+  const handleSaveReview = async () => {
+    setIsSaving(true)
+    setSaveMessage(null)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) return
+
+      const reviews = Object.entries(reviewState)
+        .map(([domainId, r]) => ({
+          domain_id: Number(domainId),
+          review_status: r.review_status,
+          reviewer_remarks: r.reviewer_remarks,
+        }))
+        .filter((r) => r.review_status !== null)
+
+      const res = await fetch(`/api/v1/assessments/${id}/review`, {
+        method: 'PUT',
+        headers: { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reviews }),
+      })
+
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.detail || 'Failed to save review')
+      }
+
+      setSaveMessage({ type: 'success', text: 'Review saved successfully' })
+    } catch (err: any) {
+      setSaveMessage({ type: 'error', text: err.message || 'Failed to save review' })
+    } finally {
+      setIsSaving(false)
+      setTimeout(() => setSaveMessage(null), 3000)
+    }
+  }
+
+  const handleSubmitReview = async (assessmentStatus: string) => {
+    setIsSaving(true)
+    setSaveMessage(null)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) return
+
+      const reviews = Object.entries(reviewState)
+        .map(([domainId, r]) => ({
+          domain_id: Number(domainId),
+          review_status: r.review_status,
+          reviewer_remarks: r.reviewer_remarks,
+        }))
+        .filter((r) => r.review_status !== null)
+
+      const res = await fetch(`/api/v1/assessments/${id}/review/submit`, {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({ reviews, assessment_status: assessmentStatus }),
+      })
+
+      if (!res.ok) {
+        const err = await res.json()
+        throw new Error(err.detail || 'Failed to submit review')
+      }
+
+      setShowSubmitDialog(false)
+      setSaveMessage({ type: 'success', text: 'Review submitted successfully' })
+      // Re-fetch assessment to update status badge
+      const { data: { session: s } } = await supabase.auth.getSession()
+      if (s) {
+        const refreshed = await fetch(`/api/v1/assessments/${id}`, {
+          headers: { Authorization: `Bearer ${s.access_token}` },
+        })
+        if (refreshed.ok) {
+          const data = await refreshed.json()
+          setAssessment({
+            ...data,
+            id: String(data.id),
+            status: normalizeStatus(data.status || 'submitted'),
+            date_of_assessment: data.date_of_assessment || data.created_at?.split('T')[0] || '',
+          })
+        }
+      }
+    } catch (err: any) {
+      setSaveMessage({ type: 'error', text: err.message || 'Failed to submit review' })
+    } finally {
+      setIsSaving(false)
+      setTimeout(() => setSaveMessage(null), 3000)
+    }
+  }
+
+  // Derived review counts
+  const reviewEntries = Object.values(reviewState)
+  const greenCount = reviewEntries.filter((r) => r.review_status === 'okay').length
+  const yellowCount = reviewEntries.filter((r) => r.review_status === 'needs_revision').length
+  const unreviewedCount = 15 - greenCount - yellowCount
+
   return (
-    <PortalPageLayout user={user} onLogout={handleLogout} showFooter={false}>
-      <section className="w-full max-w-6xl mx-auto !px-4 sm:!px-8 !py-5 flex-1 flex flex-col min-h-0 h-[calc(100vh-72px)] overflow-hidden text-brand-navy">
+    <div className="portal-home-page h-screen w-screen overflow-hidden bg-portal text-brand-navy">
+      <PortalNav user={user} onLogout={handleLogout} />
+      <div className="flex flex-col w-full h-full overflow-hidden pt-[72px]">
+        <section className="w-full max-w-6xl mx-auto !px-4 sm:!px-8 !py-5 flex-1 flex flex-col min-h-0 overflow-hidden text-brand-navy">
         {/* HEADER BAR */}
         <div className="shrink-0 mb-4 flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-brand-border/40 pb-4">
           <div>
             <Link
-              href="/dashboard"
+              href={backLink}
               className="inline-flex items-center gap-1.5 text-xs font-semibold text-brand-slate hover:text-brand-navy transition-colors mb-2 cursor-pointer"
             >
-              <ChevronLeft className="w-4 h-4" /> Back to Nodal Dashboard
+              <ChevronLeft className="w-4 h-4" /> {backText}
             </Link>
             <div className="flex flex-wrap items-center gap-3">
               <h1 className="text-xl sm:text-2xl font-black font-serif text-brand-navy">
@@ -257,7 +407,8 @@ export default function DatasetDetailClient({ id, initialUser }: DatasetDetailCl
           )}
         </div>
 
-        {/* METRICS SUMMARY BAR */}
+        {/* METRICS SUMMARY BAR — only visible to Nodal Team */}
+        {isNodal && (
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 shrink-0 mb-4">
           <div className="bg-white/90 backdrop-blur-md border border-brand-border rounded-[18px] p-4 flex items-center gap-3 shadow-2xs">
             <div className="w-10 h-10 rounded-xl bg-blue-50 text-brand-blue flex items-center justify-center shrink-0">
@@ -301,6 +452,7 @@ export default function DatasetDetailClient({ id, initialUser }: DatasetDetailCl
             </div>
           </div>
         </div>
+        )}
 
         {/* MAIN SCROLLABLE CONTENT CARD */}
         <div className="bg-white/90 backdrop-blur-md border border-brand-border rounded-[24px] shadow-[0_8px_30px_rgb(0,0,0,0.015)] flex-1 min-h-0 overflow-y-auto p-6 flex flex-col gap-6">
@@ -391,35 +543,243 @@ export default function DatasetDetailClient({ id, initialUser }: DatasetDetailCl
             <h2 className="text-sm font-bold text-brand-navy mb-3 flex items-center gap-2 border-b border-brand-border/40 pb-2">
               <CheckCircle2 className="w-4 h-4 text-brand-blue" /> Section B — 15 Quality Domain Scores & Justification Narratives
             </h2>
-            <div className="space-y-3">
+            <div className="space-y-4">
               {domainsData.map((dom) => {
                 const answer = answersMap[dom.id] || { score: 0, description: 'No response provided.' }
+                const rubricText = dom.descriptions[answer.score] || 'No rubric selected.'
                 return (
                   <div
                     key={dom.id}
-                    className="p-4 rounded-[16px] border border-brand-border/50 bg-white hover:border-brand-blue/30 transition-all shadow-2xs"
+                    className={`p-4 rounded-[16px] border bg-white transition-all shadow-2xs ${
+                      reviewState[dom.id]?.review_status === 'okay'
+                        ? 'border-emerald-400'
+                        : reviewState[dom.id]?.review_status === 'needs_revision'
+                        ? 'border-amber-400'
+                        : 'border-brand-border/50 hover:border-brand-blue/30'
+                    }`}
                   >
-                    <div className="flex items-start justify-between gap-3 mb-2">
+                    <div className="flex items-start justify-between gap-3 mb-3 pb-3 border-b border-brand-border/40">
                       <div>
                         <span className="text-[10px] font-extrabold uppercase text-brand-blue tracking-wide">
                           Domain {dom.id}
                         </span>
-                        <h3 className="text-xs font-bold text-brand-navy">{dom.title}</h3>
+                        <h3 className="text-sm font-bold text-brand-navy">{dom.title}</h3>
                       </div>
                       <span className="shrink-0 px-2.5 py-1 text-[11px] font-bold rounded-full bg-brand-blue/10 text-brand-blue border border-brand-blue/20">
                         Score: {answer.score} / 4
                       </span>
                     </div>
-                    <p className="text-xs text-brand-slate leading-relaxed bg-brand-bg-start/60 p-3 rounded-[12px] border border-brand-border/30 mt-2">
-                      <strong className="text-brand-navy">Assessor Factual Justification:</strong> {answer.description}
-                    </p>
+                    <div className="space-y-3">
+                      <div>
+                        <span className="text-[10px] font-bold text-brand-slate uppercase tracking-wider mb-1 block">Option Chosen</span>
+                        <p className="text-xs text-brand-navy leading-relaxed bg-brand-bg-start/30 p-2.5 rounded-[8px] border border-brand-border/40">
+                          {rubricText}
+                        </p>
+                      </div>
+                      <div>
+                        <span className="text-[10px] font-bold text-brand-slate uppercase tracking-wider mb-1 block">Assessor Factual Justification</span>
+                        <p className="text-xs text-brand-navy leading-relaxed bg-brand-bg-start/60 p-3 rounded-[12px] border border-brand-border/50">
+                          {answer.description}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Nodal Review Controls — only for nodal users */}
+                    {isNodal && (
+                      <div className="mt-4 pt-3 border-t border-brand-border/40">
+                        <span className="text-[10px] font-bold text-brand-slate uppercase tracking-wider mb-2 block">Nodal Review</span>
+                        <div className="flex items-center gap-2 mb-3">
+                          <button
+                            type="button"
+                            onClick={() => handleReviewStatus(dom.id, 'okay')}
+                            className={`px-3 py-1.5 text-xs font-semibold rounded-full border transition-all cursor-pointer flex items-center gap-1.5 ${
+                              reviewState[dom.id]?.review_status === 'okay'
+                                ? 'bg-emerald-50 text-emerald-700 border-emerald-400'
+                                : 'bg-white text-brand-slate border-brand-border hover:border-emerald-300 hover:text-emerald-600'
+                            }`}
+                          >
+                            <CheckCircle2 className="w-3.5 h-3.5" /> Okay
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleReviewStatus(dom.id, 'needs_revision')}
+                            className={`px-3 py-1.5 text-xs font-semibold rounded-full border transition-all cursor-pointer flex items-center gap-1.5 ${
+                              reviewState[dom.id]?.review_status === 'needs_revision'
+                                ? 'bg-amber-50 text-amber-700 border-amber-400'
+                                : 'bg-white text-brand-slate border-brand-border hover:border-amber-300 hover:text-amber-600'
+                            }`}
+                          >
+                            <MessageSquare className="w-3.5 h-3.5" /> Needs Revision
+                          </button>
+                        </div>
+                        {reviewState[dom.id]?.review_status === 'needs_revision' && (
+                          <textarea
+                            placeholder="Write your review remarks for this domain..."
+                            value={reviewState[dom.id]?.reviewer_remarks ?? ''}
+                            onChange={(e) => handleReviewRemarks(dom.id, e.target.value)}
+                            rows={3}
+                            className="w-full text-xs text-brand-navy bg-white border border-brand-border/60 rounded-[10px] p-2.5 placeholder:text-brand-slate/50 focus:outline-none focus:border-brand-blue/42 focus:ring-[3px] focus:ring-brand-blue/12 transition-all resize-none"
+                          />
+                        )}
+                      </div>
+                    )}
+
+                    {/* Nodal Review Results — visible to assessors after review is submitted */}
+                    {!isNodal && reviewState[dom.id]?.review_status && (
+                      <div className="mt-4 pt-3 border-t border-brand-border/40">
+                        <span className="text-[10px] font-bold text-brand-slate uppercase tracking-wider mb-2 block">
+                          Nodal Review Result
+                        </span>
+                        <div className="flex items-center gap-2 mb-2">
+                          {reviewState[dom.id]?.review_status === 'okay' ? (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold rounded-full bg-emerald-50 text-emerald-700 border border-emerald-300">
+                              <CheckCircle2 className="w-3 h-3" /> Okay
+                            </span>
+                          ) : (
+                            <span className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold rounded-full bg-amber-50 text-amber-700 border border-amber-300">
+                              <MessageSquare className="w-3 h-3" /> Needs Revision
+                            </span>
+                          )}
+                        </div>
+                        {reviewState[dom.id]?.review_status === 'needs_revision' && reviewState[dom.id]?.reviewer_remarks && (
+                          <div className="bg-amber-50/50 border border-amber-200 rounded-[10px] p-3 text-xs text-brand-navy leading-relaxed">
+                            <span className="font-bold text-amber-800 block mb-1">Reviewer Remarks:</span>
+                            {reviewState[dom.id]?.reviewer_remarks}
+                          </div>
+                        )}
+                      </div>
+                    )}
                   </div>
                 )
               })}
             </div>
+
+            {/* NODAL REVIEW ACTION BAR */}
+            {isNodal && (
+              <div className="sticky bottom-0 bg-white/95 backdrop-blur-sm border-t border-brand-border/60 -mx-6 -mb-6 px-6 py-4 rounded-b-[24px] mt-auto">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-3 text-xs font-semibold">
+                    <span className="flex items-center gap-1 text-emerald-600">
+                      <CheckCircle2 className="w-3.5 h-3.5" /> {greenCount} Okay
+                    </span>
+                    <span className="flex items-center gap-1 text-amber-600">
+                      <MessageSquare className="w-3.5 h-3.5" /> {yellowCount} Needs Revision
+                    </span>
+                    <span className="text-brand-slate">
+                      {unreviewedCount} Unreviewed
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {saveMessage && (
+                      <span
+                        className={`text-xs font-semibold ${
+                          saveMessage.type === 'success' ? 'text-emerald-600' : 'text-rose-600'
+                        }`}
+                      >
+                        {saveMessage.text}
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={handleSaveReview}
+                      disabled={isSaving}
+                      className="px-4 py-2 bg-brand-blue hover:bg-brand-blue-hover disabled:bg-brand-blue/60 text-white font-semibold text-xs rounded-full transition-all flex items-center gap-1.5 cursor-pointer shrink-0"
+                    >
+                      {isSaving ? (
+                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                      ) : (
+                        <Save className="w-3.5 h-3.5" />
+                      )}
+                      Save Review
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setShowSubmitDialog(true)}
+                      disabled={isSaving}
+                      className="px-4 py-2 border border-brand-blue text-brand-blue hover:bg-brand-blue hover:text-white font-semibold text-xs rounded-full transition-all flex items-center gap-1.5 cursor-pointer shrink-0 disabled:opacity-50"
+                    >
+                      Submit Review
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
+
+          {/* SUBMIT REVIEW CONFIRMATION MODAL */}
+          {isNodal && showSubmitDialog && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 backdrop-blur-sm">
+              <div className="bg-white rounded-2xl shadow-xl border border-brand-border p-6 max-w-md w-full mx-4">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-bold text-brand-navy">Submit Final Review</h3>
+                  <button
+                    type="button"
+                    onClick={() => setShowSubmitDialog(false)}
+                    className="p-1 rounded-full hover:bg-brand-bg-start transition-all cursor-pointer"
+                  >
+                    <X className="w-4 h-4 text-brand-slate" />
+                  </button>
+                </div>
+                <div className="space-y-3 text-xs">
+                  <p className="text-brand-navy font-semibold">
+                    Review Summary
+                  </p>
+                  <div className="flex items-center gap-4">
+                    <span className="flex items-center gap-1 text-emerald-600 font-semibold">
+                      <CheckCircle2 className="w-3.5 h-3.5" /> {greenCount} Okay
+                    </span>
+                    <span className="flex items-center gap-1 text-amber-600 font-semibold">
+                      <MessageSquare className="w-3.5 h-3.5" /> {yellowCount} Needs Revision
+                    </span>
+                    {unreviewedCount > 0 && (
+                      <span className="text-rose-600 font-semibold">{unreviewedCount} Unreviewed</span>
+                    )}
+                  </div>
+                  {unreviewedCount > 0 && (
+                    <p className="text-amber-600 bg-amber-50 p-2.5 rounded-[10px] border border-amber-200">
+                      {unreviewedCount} domain{unreviewedCount > 1 ? 's' : ''} still {unreviewedCount > 1 ? 'have' : 'has'} no review status.
+                    </p>
+                  )}
+                  {yellowCount > 0 && (
+                    <p className="text-amber-600 bg-amber-50 p-2.5 rounded-[10px] border border-amber-200">
+                      Yellow-marked domains will flag this assessment as needing revision.
+                    </p>
+                  )}
+                </div>
+                <div className="flex items-center gap-2 mt-5 pt-3 border-t border-brand-border/40">
+                  <button
+                    type="button"
+                    onClick={() => handleSubmitReview('approved')}
+                    disabled={isSaving}
+                    className="flex-1 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-600/60 text-white font-semibold text-xs rounded-full transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
+                    Approve Assessment
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => handleSubmitReview('revision_required')}
+                    disabled={isSaving}
+                    className="flex-1 px-4 py-2 bg-rose-600 hover:bg-rose-700 disabled:bg-rose-600/60 text-white font-semibold text-xs rounded-full transition-all flex items-center justify-center gap-1.5 cursor-pointer"
+                  >
+                    {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <MessageSquare className="w-3.5 h-3.5" />}
+                    Request Revision
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setShowSubmitDialog(false)}
+                    disabled={isSaving}
+                    className="px-4 py-2 border border-brand-border text-brand-slate hover:text-brand-navy font-semibold text-xs rounded-full transition-all cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       </section>
-    </PortalPageLayout>
+      </div>
+    </div>
   )
 }

@@ -1,10 +1,7 @@
-import { FileCheck, Lock, Printer, PlusCircle } from 'lucide-react';
+import { FileCheck, Printer, PlusCircle } from 'lucide-react';
 
 interface SubmissionResult {
   assessment_id: string;
-  cqi_grade: string;
-  prs_band: string;
-  release_category: string;
 }
 
 interface SuccessViewProps {
@@ -39,12 +36,6 @@ export function SuccessView({
 
       {/* Main Details Card */}
       <div className="w-full bg-white border border-brand-border rounded-[24px] p-8 text-left space-y-6 shadow-sm relative">
-        <div className="absolute top-6 right-6 flex items-center gap-1.5 border border-brand-border bg-brand-bg-start px-3.5 py-1.5 rounded-full text-xs font-bold text-brand-blue">
-          <Lock className="w-3.5 h-3.5" />
-          Locked (Read-Only)
-        </div>
-
-        {/* Metadata Section */}
         <div>
           <span className="text-[10px] font-extrabold text-brand-slate uppercase tracking-wider block mb-4 border-b border-brand-border/60 pb-2">
             Assessment Metadata
@@ -80,39 +71,6 @@ export function SuccessView({
               </span>
               <span className="text-brand-navy font-bold mt-1 block truncate">
                 {submittingPiCustodian}
-              </span>
-            </div>
-          </div>
-        </div>
-
-        {/* Stored Metrics Section */}
-        <div className="border-t border-brand-border/60 pt-6">
-          <span className="text-[10px] font-extrabold text-brand-slate uppercase tracking-wider block mb-4 border-b border-brand-border/60 pb-2">
-            Submission Metrics (Calculated on Backend)
-          </span>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4.5 text-center">
-            <div className="bg-brand-bg-start/40 p-4 border border-brand-border/60 rounded-[24px] shadow-2xs">
-              <span className="text-brand-slate text-[10px] uppercase font-extrabold tracking-wider block">
-                CQI Grade
-              </span>
-              <span className="text-brand-navy text-lg font-black mt-1.5 block">
-                {submissionResult.cqi_grade}
-              </span>
-            </div>
-            <div className="bg-brand-bg-start/40 p-4 border border-brand-border/60 rounded-[24px] shadow-2xs">
-              <span className="text-brand-slate text-[10px] uppercase font-extrabold tracking-wider block">
-                PRS Risk Band
-              </span>
-              <span className="text-brand-navy text-lg font-black mt-1.5 block">
-                {submissionResult.prs_band}
-              </span>
-            </div>
-            <div className="bg-brand-bg-start/40 p-4 border border-brand-border/60 rounded-[24px] shadow-2xs">
-              <span className="text-brand-slate text-[10px] uppercase font-extrabold tracking-wider block">
-                Release Category
-              </span>
-              <span className="text-brand-blue text-lg font-black mt-1.5 block">
-                {submissionResult.release_category}
               </span>
             </div>
           </div>

@@ -378,9 +378,6 @@ def submit_assessment(payload: SubmitInput, user_id: str = Depends(get_current_u
     return {
         "status": "success",
         "assessment_id": db_assessment.id,
-        "cqi_grade": cqi_grade,
-        "prs_band": prs_band,
-        "release_category": release_category
     }
 
 
@@ -400,7 +397,17 @@ def get_assessments(
     
     results = db.exec(statements).all()
     # Serialize SQLModel instances to dicts
-    return [r.dict() for r in results]
+    serialized = [r.dict() for r in results]
+
+    if current_user.role != "nodal":
+        for r in serialized:
+            r["cqi_lite_score"] = None
+            r["cqi_lite_grade"] = None
+            r["prs_lite_score"] = None
+            r["prs_lite_risk_band"] = None
+            r["release_category"] = None
+
+    return serialized
 
 
 @protected_router.get("/assessments/{assessment_id}", dependencies=[Depends(rate_limiter_cost_1)])
@@ -432,11 +439,21 @@ def get_assessment_detail(
         select(AssessmentFile).where(AssessmentFile.assessment_id == assessment_id)
     ).all()
 
-    return {
+    result = {
         **assessment.dict(),
         "answers": [a.dict() for a in answers],
         "files": [f.dict() for f in files],
     }
+
+    # Standard users must not see their own scores
+    if current_user.role != "nodal":
+        result["cqi_lite_score"] = None
+        result["cqi_lite_grade"] = None
+        result["prs_lite_score"] = None
+        result["prs_lite_risk_band"] = None
+        result["release_category"] = None
+
+    return result
 
 
 @protected_router.get("/assessments/{assessment_id}/download", dependencies=[Depends(rate_limiter_cost_1)])
