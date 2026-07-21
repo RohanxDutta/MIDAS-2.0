@@ -1,5 +1,8 @@
+'use client';
+
 import Link from 'next/link';
 import { LogOut } from 'lucide-react';
+import { usePathname } from 'next/navigation';
 
 interface PortalNavProps {
   user?: { email: string; app_metadata?: { role?: string }; user_metadata?: { role?: string } } | null;
@@ -14,6 +17,7 @@ export function PortalNav({ user, onLogout }: PortalNavProps) {
     return parts.substring(0, 2).toUpperCase();
   };
 
+  const pathname = usePathname();
   const initials = user ? getInitials(user.email) : '';
   const role = (user?.app_metadata?.role ?? user?.user_metadata?.role) === 'nodal' ? 'Nodal Team' : 'Data Custodian';
 
@@ -31,24 +35,17 @@ export function PortalNav({ user, onLogout }: PortalNavProps) {
         <span className="nav-btn nav-btn-outline">
           Delphi Proposal
         </span>
-        <Link href="/lite-version" className="nav-btn nav-btn-outline">
-          Lite Version Framework
+        <Link href="/guide" className="nav-btn nav-btn-outline">
+          Guide
         </Link>
-        <span className="nav-btn nav-btn-outline">
-          Technical Version Framework
-        </span>
         {user ? (
           <Link 
-            href={role === 'Nodal Team' ? '/dashboard' : '/assessments'} 
+            href={role === 'Nodal Team' ? '/dashboard' : (pathname === '/assessments' ? '/dashboard' : '/assessments')} 
             className="nav-btn nav-btn-outline"
           >
-            {role === 'Nodal Team' ? 'Dashboard' : 'My Assessments'}
+            {role === 'Nodal Team' ? 'Dashboard' : (pathname === '/assessments' ? 'Dashboard' : 'My Assessments')}
           </Link>
-        ) : (
-          <span className="nav-btn nav-btn-outline">
-            Expert Registration
-          </span>
-        )}
+        ) : null}
 
         {user ? (
           <div className="flex items-center gap-2.5 pl-3 ml-1 border-l border-brand-border/40">
@@ -71,7 +68,7 @@ export function PortalNav({ user, onLogout }: PortalNavProps) {
           </div>
         ) : (
           <Link href="/login" className="nav-btn nav-btn-outline">
-            Expert Login
+            Login
           </Link>
         )}
       </div>

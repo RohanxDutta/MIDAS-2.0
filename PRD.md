@@ -11,7 +11,16 @@ This document outlines the technical architecture, database schema, form structu
     - Public pages (`/`, `/lite-version`, and `/login`) use the `.portal-home-page` scoped class from `portal-home.css`/`portal-theme.css` for consistent portal typography and colors while preserving normal document scrolling. The landing page (`/`) and framework page (`/lite-version`) additionally use the `PortalPageLayout` wrapper with `IntersectionObserver` scroll animation. The login page uses `PortalNav` directly instead of `PortalPageLayout`.
     - The `/login` page enforces credential submission via `method="POST"`, provides autocomplete properties, and blocks request spammers with a 30-second countdown rate limiter after 5 failed attempts. The page uses `PortalNav` across the top (showing "Expert Login" link when unauthenticated) and the login card is vertically/horizontally centered below the fixed nav via `h-[calc(100vh-72px)] mt-[72px]`. The card uses a glass-morphism style (`bg-white/90 backdrop-blur-md`) and the title uses `font-serif font-black`.
     - **CSP (Content Security Policy)**: Middleware generates a unique base64 nonce per request via `btoa(crypto.randomUUID())`. In production, a strict `Content-Security-Policy` header is set; in development, `Content-Security-Policy-Report-Only` is used to preserve HMR. Additional security headers: `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy: camera=(), microphone=(), geolocation=()`.
-*   **Backend**: **FastAPI (Python)** (Handles API endpoints like `POST /api/v1/submit`, database operations, Redis caching, and file validation. Enforces router-level authentication dependencies and Redis-based token-bucket rate limiting).
+*   **Backend**: **FastAPI (Python)** (Handles API endpoints, database operations, Redis caching, and file validation. Enforces router-level authentication dependencies and Redis-based token-bucket rate limiting).
+    - **Core API Endpoints**:
+      - `POST /api/v1/draft`: Auto-saves draft submissions to Redis.
+      - `GET /api/v1/draft`: Fetches the auto-saved draft for the current user.
+      - `POST /api/v1/upload-url`: Generates a presigned URL to upload a dataset file.
+      - `POST /api/v1/webhooks/storage`: Receives Supabase Storage webhooks when uploads complete.
+      - `POST /api/v1/submit`: Finalizes the assessment, moving it from Redis to PostgreSQL.
+      - `GET /api/v1/assessments`: Returns a list of assessments. Nodal users see all; standard users see only their own.
+      - `GET /api/v1/assessments/{id}`: Returns full detail view of a specific assessment.
+      - `GET /api/v1/assessments/{id}/download`: Generates a 60-second presigned URL for secure downloading.
 *   **Database**: **Supabase PostgreSQL** via **SQLModel** ORM (managed in Python, with role-based PostgreSQL RLS policies).
 *   **Auth**: **Supabase Auth** on Next.js frontend. Sessions are synced to cookies for middleware checks. JWT tokens are verified on FastAPI at the endpoint level by calling the Supabase Auth server's `/auth/v1/user` endpoint with the service role key (not local JWT decoding). Roles are extracted from the JWT `app_metadata` claim (e.g., `app_metadata.get("role")`), with `user_metadata` acting only as a frontend fallback. Cookies are configured with unified `SameSite=Lax`, `path=/`, and `Secure` (in production) options on both client and server to prevent session leaks and ensure proper logout.
 *   **Draft Caching**: **Redis (hosted on Redis Cloud)**, accessed strictly via the FastAPI backend (`redis-py`). Drafts stored under key `draft:{user_id}` with a 14-day TTL.
@@ -54,7 +63,7 @@ To scale file uploads without memory/connection bottlenecks on the server, we us
 *   Assessor Name / Affiliation
 
 ### Section B: 15 Data Quality Domains
-Each domain presents:
+The 15 Quality Domains are formatted as direct **Questions** (e.g., "What level of review process ensures annotation reliability?"). Each domain presents:
 1.  **Level Selection (Score 0-4)**: Five interactive clickable cards displaying the exact level descriptions from the rubric. Configured with a dynamic hover translate lift physics (`hover:-translate-y-[2px] hover:shadow-2xs`) and a soft selected border glow.
 2.  **Factual Description**: A 4-row text area to write details supporting the chosen level.
 3.  *Special Condition*: **Domain 11** contains a "Not Applicable" toggle. If flagged:
@@ -148,6 +157,7 @@ erDiagram
         *   They view all global submissions on `DashboardNodal.tsx` (`/dashboard`).
         *   They can drill down into a specific submission via `DatasetDetailClient.tsx` (`/dashboard/[id]`).
         *   The system uses a shared `SubmissionStatus` model (Submitted, Under Review, Approved, Revision Required) defined in `nodal-data.ts`.
+    *   **Unified Detail View**: Both Nodal users and Data Custodians now share a single, unified read-only `DatasetDetailClient.tsx` component to view assessment details, maximizing code reuse. Navigation state automatically adjusts based on user role.
     *   **Backend Stateless Role Checks**: The FastAPI security engine extracts the user's role claim directly from the decrypted JWT payload (`app_metadata.get("role")`). Endpoints can enforce permissions in-memory via `require_nodal` dependencies without making extra database queries.
     *   **Role-Aware Query Routing**: The list assessments endpoint (`GET /api/v1/assessments`) uses `Depends(get_current_user)` to inspect the role claim. It dynamically exposes all records to `nodal` users while automatically restricting standard users to their own assessments.
     *   **Evidence Files (CSVs)**: Uploaded to a Supabase Storage Bucket named `private`. The files are saved under the path prefix `evidence/auth.uid()/`. They are secured with Row Level Security (RLS) so only the creator and the Nodal Team can access them.

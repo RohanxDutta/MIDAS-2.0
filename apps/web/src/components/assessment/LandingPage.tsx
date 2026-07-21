@@ -16,7 +16,7 @@ export function LandingPage() {
             <div className="hero-actions">
                 
                     <a href="https://midas.icmr.org.in/delphiproposal/" target="_blank" rel="noopener noreferrer" className="btn btn-blue">Read Delphi Proposal &rarr;</a>
-                    <Link href="/login" className="btn btn-outline">Expert Login</Link>
+                    <Link href="/login" className="btn btn-outline">Login</Link>
                 
             </div>
         </div>
@@ -248,7 +248,7 @@ export function LandingPage() {
         <p>If you are an invited expert, you can log in and continue the validation workflow. If you are new to MIDAS, start with the Delphi Proposal to read the full review document and scoring context.</p>
         <div className="cta-actions">
             <a href="https://midas.icmr.org.in/delphiproposal/" target="_blank" rel="noopener noreferrer" className="btn btn-ghost-light">Read Delphi Proposal</a>
-            <Link href="/login" className="btn btn-orange">Expert Login &rarr;</Link>
+            <Link href="/login" className="btn btn-orange">Login &rarr;</Link>
         </div>
     </div>
 </section>

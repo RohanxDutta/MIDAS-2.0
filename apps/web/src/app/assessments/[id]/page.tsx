@@ -1,6 +1,6 @@
 import { createServerClient } from '@supabase/ssr'
 import { cookies } from 'next/headers'
-import DatasetPreviewClient from './DatasetPreviewClient'
+import DatasetDetailClient from '@/app/dashboard/[id]/DatasetDetailClient'
 import { redirect } from 'next/navigation'
 import type { Metadata } from 'next'
 
@@ -29,5 +29,5 @@ export default async function AssessmentDetailPage({ params }: { params: Promise
     redirect('/login')
   }
 
-  return <DatasetPreviewClient id={id} initialUser={user} />
+  return <DatasetDetailClient id={id} initialUser={user} />
 }

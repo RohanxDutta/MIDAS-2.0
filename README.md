@@ -65,9 +65,9 @@ midas-2.0/
 │   │   │   ├── assessments/  # Standard user dashboard for past submissions
 │   │   │   │   ├── page.tsx
 │   │   │   │   ├── AssessmentsClient.tsx
+│   │   │   │   ├── page.tsx
 │   │   │   │   └── [id]/
-│   │   │   │       ├── page.tsx
-│   │   │   │       └── DatasetPreviewClient.tsx
+│   │   │   │       └── page.tsx
 │   │   │   ├── dashboard/    # Nodal dashboard & Assessment wizard
 │   │   │   │   ├── page.tsx          # Server component, creates Supabase SSR client
 │   │   │   │   ├── DashboardClient.tsx # Main assessment wizard (5-step form)
@@ -79,6 +79,8 @@ midas-2.0/
 │   │   │   ├── lite-version/ # Public page displaying Lite Version framework text
 │   │   │   ├── login/        # Standalone login page with rate limit & password toggle
 │   │   │   ├── auth-session-watcher.tsx # Client-side session change listener
+│   │   │   ├── favicon.ico   # App favicon
+│   │   │   ├── globals.css   # Global utility classes (.bg-portal, .card-portal)
 │   │   │   ├── layout.tsx    # Root layout with CSP nonce & Geist fonts
 │   │   │   ├── page.tsx      # Landing page (/)
 │   │   │   ├── portal-home.css # Scoped override stylesheet for public pages
@@ -294,7 +296,24 @@ When writing new FastAPI endpoints in `endpoints.py`, follow these dependency-in
 
 ---
 
-## 9. Rate Limiting Developer Guide
+## 9. Core API Endpoints
+
+The FastAPI backend exposes the following core endpoints (all prefixed with `/api/v1`):
+
+| Endpoint | Method | Purpose |
+| :--- | :--- | :--- |
+| `/draft` | POST | Auto-saves draft submissions to Redis for the current user. |
+| `/draft` | GET | Fetches the auto-saved draft for the current user. |
+| `/upload-url` | POST | Generates a presigned URL to upload a dataset file directly to Supabase Storage. |
+| `/webhooks/storage` | POST | Receives Supabase Storage webhooks when uploads complete, saving file metadata to the database. |
+| `/submit` | POST | Finalizes the assessment, moving it from Redis draft to the PostgreSQL database and calculating scores. |
+| `/assessments` | GET | Returns a list of assessments. Nodal users see all; standard users see only their own. |
+| `/assessments/{id}` | GET | Returns full detail view of a specific assessment (including answers and files). |
+| `/assessments/{id}/download` | GET | Generates a 60-second presigned URL for securely downloading the assessment file. |
+
+---
+
+## 10. Rate Limiting Developer Guide
 
 Rate limiting uses a **Token Bucket** algorithm implemented as a Lua script executed atomically in Redis. Two pre-configured instances are instantiated in `endpoints.py`:
 
