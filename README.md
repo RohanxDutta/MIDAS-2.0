@@ -67,7 +67,8 @@ midas-2.0/
 │   │   │   │   ├── AssessmentsClient.tsx
 │   │   │   │   ├── page.tsx
 │   │   │   │   └── [id]/
-│   │   │   │       └── page.tsx
+│   │   │   │       ├── page.tsx
+│   │   │   │       └── DatasetPreviewClient.tsx # Client component with read-only preview
 │   │   │   ├── dashboard/    # Nodal dashboard & Assessment wizard
 │   │   │   │   ├── page.tsx          # Server component, creates Supabase SSR client
 │   │   │   │   ├── DashboardClient.tsx # Main assessment wizard (5-step form)
@@ -75,8 +76,8 @@ midas-2.0/
 │   │   │   │   ├── nodal-data.ts       # Shared types and status definitions
 │   │   │   │   └── [id]/
 │   │   │   │       ├── page.tsx        
-│   │   │   │       └── DatasetDetailClient.tsx # Detailed view of an assessment for nodal review
-│   │   │   ├── lite-version/ # Public page displaying Lite Version framework text
+│   │   │   │       └── DatasetDetailClient.tsx # Shared detail view with nodal review controls and score hiding
+│   │   │   ├── guide/        # Public page displaying Lite Version framework text (renamed from lite-version)
 │   │   │   ├── login/        # Standalone login page with rate limit & password toggle
 │   │   │   ├── auth-session-watcher.tsx # Client-side session change listener
 │   │   │   ├── favicon.ico   # App favicon
@@ -134,7 +135,8 @@ midas-2.0/
 │       │       ├── 658ba24a208f_initial_schema_migration.py
 │       │       ├── 3f92085039ed_initial_schema_migration.py
 │       │       ├── 0a29c7e5edae_add_user_id_to_assessmentfile.py
-│       │       └── b4e71a9c3d21_make_assessment_id_nullable.py
+│       │       ├── b4e71a9c3d21_make_assessment_id_nullable.py
+│       │       └── d0831c632ac8_add_review_fields_to_assessment_answers.py
 │       ├── models/
 │       │   ├── __init__.py
 │       │   ├── assessment.py
@@ -253,9 +255,9 @@ To run the full stack locally from the root workspace directory, run these scrip
     npm run dev:web
     ```
 
-Once loaded, navigate your browser to `http://localhost:3000`. The root URL (`/`) and the framework document page (`/lite-version`) are public routes and accessible anonymously. Attempting to navigate to the assessment wizard (`/dashboard`) or past submissions (`/assessments`) will route unauthenticated requests to `/login`. 
+Once loaded, navigate your browser to `http://localhost:3000`. The root URL (`/`) and the framework document page (`/guide`) are public routes and accessible anonymously. Attempting to navigate to the assessment wizard (`/dashboard`) or past submissions (`/assessments`) will route unauthenticated requests to `/login`. 
 
-Sign in with either your standard custodian credentials (`user@gmail.com` / `test123`) or the Nodal Team account (`nodal@gmail.com` / `test123`). Standard users can fill out the wizard at `/dashboard` and view past submissions at `/assessments`. Nodal users are routed to a specialized inbox at `/dashboard` where they can view, sort, and review all submissions globally, clicking into `/dashboard/[id]` for the complete detail view. Note that manual signup has been disabled for safety.
+Sign in with either your standard custodian credentials (`user@gmail.com` / `test123`) or the Nodal Team account (`nodal@gmail.com` / `test123`). Standard users can fill out the wizard at `/dashboard` and view past submissions at `/assessments`. Nodal users are routed to a specialized inbox at `/dashboard` where they can view, sort, and review all submissions globally, clicking into `/dashboard/[id]` for the complete detail view. From the detail view, nodal users can perform a per-question review (mark each domain as Okay or Needs Revision, add remarks), save in-progress, or submit a final review that sets the assessment status to Approved or Revision Required. Standard users see the review results (green/yellow badges with remarks) once the nodal submits. Note that manual signup has been disabled for safety.
 
 ---
 
@@ -308,8 +310,10 @@ The FastAPI backend exposes the following core endpoints (all prefixed with `/ap
 | `/webhooks/storage` | POST | Receives Supabase Storage webhooks when uploads complete, saving file metadata to the database. |
 | `/submit` | POST | Finalizes the assessment, moving it from Redis draft to the PostgreSQL database and calculating scores. |
 | `/assessments` | GET | Returns a list of assessments. Nodal users see all; standard users see only their own. |
-| `/assessments/{id}` | GET | Returns full detail view of a specific assessment (including answers and files). |
+| `/assessments/{id}` | GET | Returns full detail view of a specific assessment (including answers and files). Score fields are `null` for non-nodal users. |
 | `/assessments/{id}/download` | GET | Generates a 60-second presigned URL for securely downloading the assessment file. |
+| `/assessments/{id}/review` | PUT | Nodal-only. Saves per-question review status (`okay`/`needs_revision`) and remarks in-progress. Assessment status unchanged. |
+| `/assessments/{id}/review/submit` | POST | Nodal-only. Finalises the review and sets assessment status to `approved` or `revision_required`. |
 
 ---
 

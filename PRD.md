@@ -8,7 +8,7 @@ This document outlines the technical architecture, database schema, form structu
 
 *   **Frontend**: **Next.js (v16 App Router)** + **React 19** + **Tailwind CSS (v4) & Custom Scoped CSS** + **Next.js Server-side Middleware** (handles server-side session guards, CSP nonce injection, and security headers). 
     - Standard users fill out the interactive form on `/dashboard` and view past submissions on `/assessments`. The interactive form preserves state via a debounced autosave connection (2-second debounce). UI navigation states (`step`, `activeDomainIdx`) are persisted in `localStorage` and cleared on reset/logout/submission.
-    - Public pages (`/`, `/lite-version`, and `/login`) use the `.portal-home-page` scoped class from `portal-home.css`/`portal-theme.css` for consistent portal typography and colors while preserving normal document scrolling. The landing page (`/`) and framework page (`/lite-version`) additionally use the `PortalPageLayout` wrapper with `IntersectionObserver` scroll animation. The login page uses `PortalNav` directly instead of `PortalPageLayout`.
+    - Public pages (`/`, `/guide`, and `/login`) use the `.portal-home-page` scoped class from `portal-home.css`/`portal-theme.css` for consistent portal typography and colors while preserving normal document scrolling. The landing page (`/`) and framework page (`/guide`) additionally use the `PortalPageLayout` wrapper with `IntersectionObserver` scroll animation. The login page uses `PortalNav` directly instead of `PortalPageLayout`.
     - The `/login` page enforces credential submission via `method="POST"`, provides autocomplete properties, and blocks request spammers with a 30-second countdown rate limiter after 5 failed attempts. The page uses `PortalNav` across the top (showing "Expert Login" link when unauthenticated) and the login card is vertically/horizontally centered below the fixed nav via `h-[calc(100vh-72px)] mt-[72px]`. The card uses a glass-morphism style (`bg-white/90 backdrop-blur-md`) and the title uses `font-serif font-black`.
     - **CSP (Content Security Policy)**: Middleware generates a unique base64 nonce per request via `btoa(crypto.randomUUID())`. In production, a strict `Content-Security-Policy` header is set; in development, `Content-Security-Policy-Report-Only` is used to preserve HMR. Additional security headers: `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy: strict-origin-when-cross-origin`, `Permissions-Policy: camera=(), microphone=(), geolocation=()`.
 *   **Backend**: **FastAPI (Python)** (Handles API endpoints, database operations, Redis caching, and file validation. Enforces router-level authentication dependencies and Redis-based token-bucket rate limiting).
@@ -19,8 +19,10 @@ This document outlines the technical architecture, database schema, form structu
       - `POST /api/v1/webhooks/storage`: Receives Supabase Storage webhooks when uploads complete.
       - `POST /api/v1/submit`: Finalizes the assessment, moving it from Redis to PostgreSQL.
       - `GET /api/v1/assessments`: Returns a list of assessments. Nodal users see all; standard users see only their own.
-      - `GET /api/v1/assessments/{id}`: Returns full detail view of a specific assessment.
+      - `GET /api/v1/assessments/{id}`: Returns full detail view of a specific assessment. For non-nodal users, score fields (`cqi_lite_score`, `cqi_lite_grade`, `prs_lite_score`, etc.) are returned as `null`.
       - `GET /api/v1/assessments/{id}/download`: Generates a 60-second presigned URL for secure downloading.
+      - `PUT /api/v1/assessments/{id}/review`: Nodal-only. Saves per-question review status (`okay`/`needs_revision`) and reviewer remarks in-progress. Does not change the assessment-level status.
+      - `POST /api/v1/assessments/{id}/review/submit`: Nodal-only. Finalises the review and sets the assessment status to `approved` or `revision_required`.
 *   **Database**: **Supabase PostgreSQL** via **SQLModel** ORM (managed in Python, with role-based PostgreSQL RLS policies).
 *   **Auth**: **Supabase Auth** on Next.js frontend. Sessions are synced to cookies for middleware checks. JWT tokens are verified on FastAPI at the endpoint level by calling the Supabase Auth server's `/auth/v1/user` endpoint with the service role key (not local JWT decoding). Roles are extracted from the JWT `app_metadata` claim (e.g., `app_metadata.get("role")`), with `user_metadata` acting only as a frontend fallback. Cookies are configured with unified `SameSite=Lax`, `path=/`, and `Secure` (in production) options on both client and server to prevent session leaks and ensure proper logout.
 *   **Draft Caching**: **Redis (hosted on Redis Cloud)**, accessed strictly via the FastAPI backend (`redis-py`). Drafts stored under key `draft:{user_id}` with a 14-day TTL.
@@ -109,7 +111,7 @@ erDiagram
         string release_category
         string dataset_type "structured | unstructured"
         string dataset_link "nullable"
-        string status "draft | submitted"
+        string status "draft | submitted | approved | revision_required"
         timestamp created_at
     }
 
@@ -119,6 +121,8 @@ erDiagram
         int domain_id "1 to 15"
         int score "0 to 4"
         text factual_description
+        string review_status "nullable; okay | needs_revision"
+        text reviewer_remarks "nullable; nodal remarks"
     }
 
     assessment_files {
@@ -146,18 +150,24 @@ erDiagram
         *   **CQI-Lite Score & Grade**: `(Sum of Domain Scores / Max Score) * 100` and maps to grade (Diamond, Platinum, Gold, Silver, Bronze, Remediation). Max score is `56` if Domain 11 is NA, otherwise `60`.
         *   **PRS-Lite Score & Risk Band**: `round(Identification Risk * Multiplier)` capped at 100, and maps to band (Low, Moderate, etc.).
         *   **Release Category**: Looks up the 4x6 release matrix using the computed CQI Grade and PRS Risk Band.
-    *   Scores and category are saved directly into the `assessments` table and are displayed prominently on the user's frontend via the `/assessments` dashboard, the `SuccessView`, and to the Nodal team on `/dashboard`.
+    *   Scores and category are saved directly into the `assessments` table. They are displayed to the Nodal team on `/dashboard` but are **hidden from standard users** (returned as `null`) in list, detail, and preview views. Standard users only see their scores after the nodal review is complete.
     *   FastAPI writes the finalized data permanently to PostgreSQL, associates the file records, and deletes the draft from Redis.
     *   **Auto-Cleanup**: Deletes any remaining unlinked draft `assessment_files` (where `assessment_id IS NULL`) for the user to prevent orphaned data.
     *   Submitted assessments become read-only.
 3.  **Privacy & Access Control (Row-Level Security)**:
-    *   **Route Guards**: Server-side Next.js middleware validates cookies and redirects unauthenticated traffic trying to access protected paths (like `/dashboard` and `/assessments`) back to `/login`. Public routes `/` (Landing Page), `/lite-version`, and `/login` are accessible anonymously. Client-side state changes are synchronized via `AuthSessionWatcher`. If the active session is lost or if the draft API returns a 401, the client-side router redirects the user to `/login`.
+    *   **Route Guards**: Server-side Next.js middleware validates cookies and redirects unauthenticated traffic trying to access protected paths (like `/dashboard` and `/assessments`) back to `/login`. Public routes `/` (Landing Page), `/guide`, and `/login` are accessible anonymously. Client-side state changes are synchronized via `AuthSessionWatcher`. If the active session is lost or if the draft API returns a 401, the client-side router redirects the user to `/login`.
     *   **Submitting User**: Can fill forms, view drafts, and view/edit/delete their own final submissions. Secured via database Row-Level Security (RLS) check: `auth.uid() = user_id`.
     *   **Nodal Team / Administrator Role**: Access is checked via dynamic claims verification: `auth.jwt() -> 'app_metadata' ->> 'role' = 'nodal'`. This dynamic mapping allows adding multiple nodal team accounts without database schema updates. The Nodal team uses a specialized workflow:
         *   They view all global submissions on `DashboardNodal.tsx` (`/dashboard`).
         *   They can drill down into a specific submission via `DatasetDetailClient.tsx` (`/dashboard/[id]`).
         *   The system uses a shared `SubmissionStatus` model (Submitted, Under Review, Approved, Revision Required) defined in `nodal-data.ts`.
     *   **Unified Detail View**: Both Nodal users and Data Custodians now share a single, unified read-only `DatasetDetailClient.tsx` component to view assessment details, maximizing code reuse. Navigation state automatically adjusts based on user role.
+    *   **Nodal Review Workflow**: Nodal users can review each domain question individually:
+        *   Mark a domain as **Okay** (green) or **Needs Revision** (yellow) with optional written remarks.
+        *   **Save In-Progress** (`PUT /review`): Persists per-question review data to the database without changing the assessment-level status.
+        *   **Submit Final Review** (`POST /review/submit`): Persists all review data and sets the assessment status to `approved` (all domains okay) or `revision_required` (at least one domain flagged).
+        *   Once submitted, standard users can see the per-domain review results (green badges, yellow badges with remarks) and the updated assessment status on the detail view. Scores remain hidden from standard users until review is complete, at which point they are returned as `null`.
+        *   A submit confirmation modal shows a summary (green count, yellow count, unreviewed count) and warns if domains are still unreviewed.
     *   **Backend Stateless Role Checks**: The FastAPI security engine extracts the user's role claim directly from the decrypted JWT payload (`app_metadata.get("role")`). Endpoints can enforce permissions in-memory via `require_nodal` dependencies without making extra database queries.
     *   **Role-Aware Query Routing**: The list assessments endpoint (`GET /api/v1/assessments`) uses `Depends(get_current_user)` to inspect the role claim. It dynamically exposes all records to `nodal` users while automatically restricting standard users to their own assessments.
     *   **Evidence Files (CSVs)**: Uploaded to a Supabase Storage Bucket named `private`. The files are saved under the path prefix `evidence/auth.uid()/`. They are secured with Row Level Security (RLS) so only the creator and the Nodal Team can access them.
