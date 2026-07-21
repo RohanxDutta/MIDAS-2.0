@@ -32,9 +32,6 @@ export function PortalNav({ user, onLogout }: PortalNavProps) {
         </div>
       </Link>
       <div className="nav-right">
-        <span className="nav-btn nav-btn-outline">
-          Delphi Proposal
-        </span>
         <Link href="/guide" className="nav-btn nav-btn-outline">
           Guide
         </Link>
