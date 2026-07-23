@@ -1,7 +1,12 @@
-import { FileCheck, Printer, PlusCircle } from 'lucide-react';
+import { FileCheck, Printer, PlusCircle, Award, Lock, ShieldCheck } from 'lucide-react';
 
 interface SubmissionResult {
   assessment_id: string;
+  cqi_lite_score?: number;
+  cqi_lite_grade?: string;
+  prs_lite_score?: number;
+  prs_lite_risk_band?: string;
+  release_category?: string;
 }
 
 interface SuccessViewProps {
@@ -75,6 +80,58 @@ export function SuccessView({
             </div>
           </div>
         </div>
+
+        {/* METRICS SUMMARY CARD */}
+        {submissionResult.cqi_lite_score !== undefined && (
+          <div className="pt-4 border-t border-brand-border/60">
+            <span className="text-[10px] font-extrabold text-brand-slate uppercase tracking-wider block mb-4">
+              Calculated Assessment Scores
+            </span>
+            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+              <div className="bg-brand-bg-start/60 border border-brand-border/80 rounded-[18px] p-4 flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-blue-50 text-brand-blue flex items-center justify-center shrink-0">
+                  <Award className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="text-[10px] font-extrabold text-brand-slate uppercase tracking-wider">CQI-Lite Score</div>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className="text-lg font-black text-brand-navy">{submissionResult.cqi_lite_score?.toFixed(1) ?? 'N/A'}</span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-brand-blue/10 text-brand-blue uppercase">
+                      {submissionResult.cqi_lite_grade ?? 'Standard'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-brand-bg-start/60 border border-brand-border/80 rounded-[18px] p-4 flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-amber-50 text-amber-600 flex items-center justify-center shrink-0">
+                  <Lock className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="text-[10px] font-extrabold text-brand-slate uppercase tracking-wider">PRS-Lite Score</div>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className="text-lg font-black text-brand-navy">{submissionResult.prs_lite_score?.toFixed(1) ?? 'N/A'}</span>
+                    <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 uppercase">
+                      {submissionResult.prs_lite_risk_band ?? 'Low Risk'}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-brand-bg-start/60 border border-brand-border/80 rounded-[18px] p-4 flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center shrink-0">
+                  <ShieldCheck className="w-5 h-5" />
+                </div>
+                <div>
+                  <div className="text-[10px] font-extrabold text-brand-slate uppercase tracking-wider">Release Category</div>
+                  <div className="text-sm font-bold text-brand-navy mt-0.5">
+                    {submissionResult.release_category ?? 'Open Access'}
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Buttons */}

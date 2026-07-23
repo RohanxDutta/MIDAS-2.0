@@ -15,7 +15,7 @@ export function LandingPage() {
             <p className="hero-sub"><strong>MIDAS 2.0</strong>, the <em>Metric-based Integrity and Data Assessment System </em>is an upgrade of <strong>MIDAS 1.0</strong> <em>Medical Imaging and Information Datasets for India </em>, <strong> MIDAS 2.0 </strong>gives institutions a common method to check <strong>data quality</strong>, documentation, representativeness, interoperability, governance, and privacy before a dataset is shared, reused, or used to build AI tools.</p>
             <div className="hero-actions">
                 
-                    <a href="https://midas.icmr.org.in/delphiproposal/" target="_blank" rel="noopener noreferrer" className="btn btn-blue">Read Delphi Proposal &rarr;</a>
+                    <a href="https://midas.icmr.org.in/delphiproposal/" target="_blank" rel="noopener noreferrer" className="btn btn-blue">Read Published Paper &rarr;</a>
                     <Link href="/login" className="btn btn-outline">Login</Link>
                 
             </div>

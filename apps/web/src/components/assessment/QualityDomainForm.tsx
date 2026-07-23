@@ -22,6 +22,7 @@ export function QualityDomainForm({
   const domId = currentDomain.id;
   const isNaActive = domId === 11 && domain11Na;
   const currentAnswer = answers[domId] || { score: 0, factual_description: '' };
+  const LABELS = ['A', 'B', 'C', 'D', 'E'];
 
   const handleScoreSelect = (score: number) => {
     setAnswers((prev) => ({
@@ -96,10 +97,6 @@ export function QualityDomainForm({
         <div className="space-y-5 animate-fadeIn">
           {/* Level Cards List */}
           <div className="space-y-3">
-            <span className="block text-[10px] font-extrabold uppercase tracking-wider text-brand-slate">
-              Select Rubric Score (0 to 4)
-            </span>
-
             <div className="flex flex-col space-y-2.5">
               {[0, 1, 2, 3, 4].map((scoreVal) => {
                 const isSelected = currentAnswer.score === scoreVal;
@@ -122,7 +119,7 @@ export function QualityDomainForm({
                           : 'bg-brand-bg-start text-brand-slate border border-brand-border'
                       }`}
                     >
-                      {scoreVal}
+                      {LABELS[scoreVal]}
                     </div>
                     {/* Rubric level description (fully wrapping, no truncation) */}
                     <p

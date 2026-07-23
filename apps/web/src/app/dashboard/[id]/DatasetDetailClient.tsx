@@ -407,15 +407,14 @@ export default function DatasetDetailClient({ id, initialUser }: DatasetDetailCl
           )}
         </div>
 
-        {/* METRICS SUMMARY BAR — only visible to Nodal Team */}
-        {isNodal && (
+        {/* METRICS SUMMARY BAR */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 shrink-0 mb-4">
           <div className="bg-white/90 backdrop-blur-md border border-brand-border rounded-[18px] p-4 flex items-center gap-3 shadow-2xs">
             <div className="w-10 h-10 rounded-xl bg-blue-50 text-brand-blue flex items-center justify-center shrink-0">
               <Award className="w-5 h-5" />
             </div>
             <div>
-              <div className="text-[10px] font-extrabold text-brand-slate uppercase tracking-wider">CQI Quality Score</div>
+              <div className="text-[10px] font-extrabold text-brand-slate uppercase tracking-wider">CQI-Lite Score</div>
               <div className="flex items-center gap-2 mt-0.5">
                 <span className="text-lg font-black text-brand-navy">{assessment.cqi_lite_score?.toFixed(1) ?? 'N/A'}</span>
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-brand-blue/10 text-brand-blue uppercase">
@@ -430,7 +429,7 @@ export default function DatasetDetailClient({ id, initialUser }: DatasetDetailCl
               <Lock className="w-5 h-5" />
             </div>
             <div>
-              <div className="text-[10px] font-extrabold text-brand-slate uppercase tracking-wider">Privacy Risk Score</div>
+              <div className="text-[10px] font-extrabold text-brand-slate uppercase tracking-wider">PRS-Lite Score</div>
               <div className="flex items-center gap-2 mt-0.5">
                 <span className="text-lg font-black text-brand-navy">{assessment.prs_lite_score?.toFixed(1) ?? 'N/A'}</span>
                 <span className="text-[10px] font-bold px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-700 uppercase">
@@ -452,7 +451,6 @@ export default function DatasetDetailClient({ id, initialUser }: DatasetDetailCl
             </div>
           </div>
         </div>
-        )}
 
         {/* MAIN SCROLLABLE CONTENT CARD */}
         <div className="bg-white/90 backdrop-blur-md border border-brand-border rounded-[24px] shadow-[0_8px_30px_rgb(0,0,0,0.015)] flex-1 min-h-0 overflow-y-auto p-6 flex flex-col gap-6">

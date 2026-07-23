@@ -16,27 +16,27 @@ export function PrivacyCalculator({
   const riskOptions = [
     {
       val: 50,
-      label: '50 - High Traceability',
+      label: 'High Traceability',
       desc: 'Names, phone numbers, IDs, GPS, or full Date of Birth are visible; easily traceable individuals.',
     },
     {
       val: 30,
-      label: '30 - Indirect Identification',
+      label: 'Indirect Identification',
       desc: 'Direct identifiers removed, but unique combinations can reveal identities (e.g., rare disease + village + date).',
     },
     {
       val: 15,
-      label: '15 - Coarse Anonymization',
+      label: 'Coarse Anonymization',
       desc: 'Only coarse variables remain (age, sex, district, month); re-identification is hard but not impossible.',
     },
     {
       val: 5,
-      label: '5 - Strongly Masked',
+      label: 'Strongly Masked',
       desc: 'Generalized categories only (age bands, state, quarter); identities effectively hidden.',
     },
     {
       val: 0,
-      label: '0 - Aggregated Outputs Only',
+      label: 'Aggregated Outputs Only',
       desc: 'Only aggregated counts are present; no individual rows are stored.',
     },
   ];
@@ -44,17 +44,17 @@ export function PrivacyCalculator({
   const multiplierOptions = [
     {
       val: 1.0,
-      label: '1.0 - Routine / Low Harm',
+      label: 'Routine / Low Harm',
       desc: 'Non-stigmatizing routine parameters (e.g., vitals or service utilization statistics).',
     },
     {
       val: 1.5,
-      label: '1.5 - High Stigma / Personal Impact',
+      label: 'High Stigma / Personal Impact',
       desc: 'TB, HIV, reproductive health, mental health, genomic assets, vulnerable groups, or undocumented status.',
     },
     {
       val: 2.0,
-      label: '2.0 - Critical / Safety-Sensitive',
+      label: 'Critical / Safety-Sensitive',
       desc: 'Forensic details, detainee health, conflict data, tribal GPS coordinates, or refugee records.',
     },
   ];
@@ -78,7 +78,7 @@ export function PrivacyCalculator({
         {/* Step 1: Identification Risk */}
         <div className="space-y-4">
           <span className="block text-xs font-extrabold uppercase tracking-wider text-brand-slate">
-            Step 1 – Identification Risk Score (0 to 50)
+            Step 1 – Identification Risk Assessment
           </span>
 
           <div className="grid grid-cols-1 gap-3">
@@ -126,7 +126,7 @@ export function PrivacyCalculator({
         {/* Step 2: Sensitivity Multiplier */}
         <div className="space-y-4">
           <span className="block text-xs font-extrabold uppercase tracking-wider text-brand-slate">
-            Step 2 – Sensitivity / Harm Multiplier (1.0 to 2.0)
+            Step 2 – Sensitivity & Harm Classification
           </span>
 
           <div className="grid grid-cols-1 gap-3">
