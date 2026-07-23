@@ -2,12 +2,17 @@ FROM node:20-alpine AS builder
 
 WORKDIR /app
 
-# Copy dependency files
+# Copy root monorepo package manifests
 COPY package*.json ./
+COPY apps/web/package*.json ./apps/web/
+
+# Install all monorepo dependencies (hoisted to /app/node_modules)
 RUN npm ci
 
-# Copy application source
-COPY . .
+# Copy frontend source code
+COPY apps/web ./apps/web
+
+WORKDIR /app/apps/web
 
 # Build Next.js project
 RUN npm run build
@@ -18,13 +23,13 @@ WORKDIR /app
 
 ENV NODE_ENV=production
 
-# Copy built assets and dependencies from builder stage
-COPY --from=builder /app/package*.json ./
-COPY --from=builder /app/.next ./.next
-COPY --from=builder /app/public ./public
+# Copy hoisted node_modules and built web app assets
 COPY --from=builder /app/node_modules ./node_modules
+COPY --from=builder /app/apps/web ./apps/web
 
-# Expose port 3000 for Next.js app
+WORKDIR /app/apps/web
+
+# Expose port 3000 for Next.js
 EXPOSE 3000
 
 # Start Next.js production server

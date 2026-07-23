@@ -1,358 +1,330 @@
 # ICMR MIDAS 2.0 (Lite Version)
-### Dataset Quality and Trust Framework (Self-Assessment Tool)
+> **Dataset Quality and Trust Framework — Self-Assessment & Nodal Governance Platform**
 
-The Lite Version of MIDAS 2.0 (Metric-based Integrity and Data Assessment System) is a simplified self-assessment tool designed for Independent Centers to evaluate dataset quality, integrity, interoperability, and privacy. The completed self-assessment forms are submitted to the Nodal Centre for detailed evaluation, validation, and formal Composite Quality Index (CQI) and Privacy-Risk Score (PRS) technical auditing.
+[![Next.js](https://img.shields.io/badge/Next.js-16_App_Router-black?logo=next.js)](https://nextjs.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-Python_3.11+-009688?logo=fastapi)](https://fastapi.tiangolo.com/)
+[![PostgreSQL](https://img.shields.io/badge/PostgreSQL-Supabase-4169E1?logo=postgresql)](https://supabase.com/)
+[![Redis](https://img.shields.io/badge/Redis-Draft_Cache-DC382D?logo=redis)](https://redis.io/)
+[![Tailwind CSS](https://img.shields.io/badge/Tailwind_CSS-v4-38B2AC?logo=tailwindcss)](https://tailwindcss.com/)
 
----
-
-## 1. Technical Stack
-
-| Layer / Component | Technology / Tool | Purpose / Details |
-| :--- | :--- | :--- |
-| **Frontend** | Next.js (v16 App Router) + React 19 | Interactive Form UI, client-side routing, and Supabase Auth session management. |
-| **Backend** | FastAPI (Python) | API engine handling score calculations, Redis caching logic, and file validation. |
-| **Database** | Supabase PostgreSQL | Relational storage for submitted assessments and answers. |
-| **ORM** | SQLModel | Pydantic-compatible SQLAlchemy database model layer. |
-| **Database Migrations** | Alembic | Schema versioning and migration deployment tool. |
-| **Auth** | Supabase Auth | Handles user registrations and logins (email/password). JWT verified server-side via Supabase Auth `/auth/v1/user` endpoint with service role key. |
-| **Draft Caching** | Redis | Temporary draft state auto-saver (hosted on Redis Cloud). Keys stored as `draft:{user_id}` with 14-day TTL. |
-| **Rate Limiting** | Token Bucket (Redis Lua Script) | Two tiers: cost=1 (20 capacity, 0.33 fill/s) for lightweight endpoints; cost=10 for `/submit`. Per-user keys `rate_limit:{user_id}`. Fail-open for cost=1 if Redis is down; returns 503 for cost=10. |
-| **Styling** | Tailwind CSS (v4) & Custom Scoped CSS | Responsive UI design using a Clinical Slate & Soft-Glass Accents theme for internal dashboard, with custom stylesheets `portal-home.css` and `portal-theme.css` scoped under `.portal-home-page` for public pages (preserving normal scrolling). Global utility classes `.bg-portal` (gradient background) and `.card-portal` (glass-morphism card) defined in `globals.css`. |
-| **Validation** | HTML5 & Pydantic | Client-side UI checks and Server-side Pydantic validation. |
-| **Security Headers** | Next.js Middleware | CSP nonce (per-request), `X-Frame-Options: DENY`, `X-Content-Type-Options: nosniff`, `Referrer-Policy`, `Permissions-Policy`. |
-| **Icons** | lucide-react | UI icon library. |
+The **ICMR MIDAS 2.0 (Metric-based Integrity and Data Assessment System - Lite Version)** is a self-assessment and technical audit platform designed by the Indian Council of Medical Research (ICMR). It enables **Data Custodians (Applicants)** to evaluate dataset quality, integrity, interoperability, and privacy readiness across 15 structured domains, while providing **ICMR Nodal Officers** with a dedicated portal for technical evaluation, evidence verification, and release recommendation.
 
 ---
 
-## 2. System Architecture
+## ⚡ 5-Minute Quickstart Guide
 
-```text
-                  +----------------------------------------------+
-                  |         Next.js Frontend (Port 3000)         |
-                  +----------------------+-----------------------+
-                                         |
-                       /api/v1/*         | Supabase Auth
-                     Proxy Rewrite       | (JWT Token)
-                               v         v
-                  +----------------------+-----------------------+
-                  |         FastAPI Backend (Port 8000)          |
-                  +---------+------------+------------+----------+
-                            |            |            |
-                  Redis Cmd |            | SQLModel   | HTTP PUT
-                            v            | Queries    | Url Request
-                  +---------+--+         v            v
-                  | Redis Cloud|   +-----+----+ +-----+----------+
-                  | (Drafts)   |   | Supabase | | Supabase       |
-                  +------------+   | Postgres | | Storage Bucket |
-                                   +-----+----+ +-----+----------+
-                                         ^            |
-                                  pg_net |            | Direct File
-                                 Webhook |            | Upload
-                                         +------------+
-```
-
----
-
-## 3. Directory Structure
-
-```text
-midas-2.0/
-├── PRD.md                    # Official Product Requirements Document
-├── midas-lite-version.md     # Original framework documentation reference
-├── apps/
-│   ├── web/                  # Next.js Frontend (Page components, Auth gate)
-│   │   ├── src/app/          # Routing layout, globals.css, state coordinator
-│   │   │   ├── assessments/  # Standard user dashboard for past submissions
-│   │   │   │   ├── page.tsx
-│   │   │   │   ├── AssessmentsClient.tsx
-│   │   │   │   ├── page.tsx
-│   │   │   │   └── [id]/
-│   │   │   │       ├── page.tsx
-│   │   │   │       └── DatasetPreviewClient.tsx # Client component with read-only preview
-│   │   │   ├── dashboard/    # Nodal dashboard & Assessment wizard
-│   │   │   │   ├── page.tsx          # Server component, creates Supabase SSR client
-│   │   │   │   ├── DashboardClient.tsx # Main assessment wizard (5-step form)
-│   │   │   │   ├── DashboardNodal.tsx  # Nodal user inbox for evaluating submitted assessments
-│   │   │   │   ├── nodal-data.ts       # Shared types and status definitions
-│   │   │   │   └── [id]/
-│   │   │   │       ├── page.tsx        
-│   │   │   │       └── DatasetDetailClient.tsx # Shared detail view with nodal review controls and score hiding
-│   │   │   ├── guide/        # Public page displaying Lite Version framework text (renamed from lite-version)
-│   │   │   ├── login/        # Standalone login page with rate limit & password toggle
-│   │   │   ├── auth-session-watcher.tsx # Client-side session change listener
-│   │   │   ├── favicon.ico   # App favicon
-│   │   │   ├── globals.css   # Global utility classes (.bg-portal, .card-portal)
-│   │   │   ├── layout.tsx    # Root layout with CSP nonce & Geist fonts
-│   │   │   ├── page.tsx      # Landing page (/)
-│   │   │   ├── portal-home.css # Scoped override stylesheet for public pages
-│   │   │   └── portal-theme.css # Scoped brand variables and fonts
-│   │   ├── src/components/
-│   │   │   ├── assessment/   # Modular wizard components
-│   │   │   │   ├── LandingPage.tsx       # Marketing landing page content
-│   │   │   │   ├── Stepper.tsx           # 5-step stepper with 15-domain expand
-│   │   │   │   ├── DatasetBasicsForm.tsx # Section A plain text metadata layout
-│   │   │   │   ├── QualityDomainForm.tsx # Section B rubric scores & justifications
-│   │   │   │   ├── PrivacyCalculator.tsx # Section C PRS-Lite risk & multiplier
-│   │   │   │   ├── DataUploadForm.tsx    # Section D structured/unstructured upload
-│   │   │   │   ├── ReviewForm.tsx        # Section E compiled inputs preview
-│   │   │   │   └── SuccessView.tsx       # Post-submission grades/scores display
-│   │   │   ├── portal/       # Reusable public layout components
-│   │   │   │   ├── PortalNav.tsx           # Auth-aware portal nav (avatar, role, logout when signed in)
-│   │   │   │   ├── PortalFooter.tsx        # Public footer component
-│   │   │   │   ├── PortalPageLayout.tsx    # Wrapper with IntersectionObserver
-│   │   │   │   ├── LiteVersionPage.tsx     # Portal-styled presentation page
-│   │   │   │   ├── lite-content.ts         # Lite framework HTML (1196 lines)
-│   │   │   │   └── lite_page_snapshot.txt  # Reference layout snapshot for framework structure
-│   │   │   └── ui/           # Reusable primitives
-│   │   │       ├── Input.tsx
-│   │   │       └── Button.tsx
-│   │   ├── src/lib/
-│   │   │   ├── supabase.ts   # Browser Supabase client singleton
-│   │   │   └── domainsData.ts # 15 domain rubric definitions (0-4)
-│   │   ├── src/middleware.ts  # Auth guard, CSP nonce, security headers
-│   │   ├── next.config.ts    # API proxy rewrites (/api/v1/* -> localhost:8000)
-│   │   ├── postcss.config.mjs # Tailwind CSS v4 PostCSS plugin
-│   │   ├── eslint.config.mjs # ESLint v9 flat config
-│   │   └── tsconfig.json     # Strict TypeScript config
-│   ├── api/                  # FastAPI Backend API Engine
-│   │   └── app/
-│   │       ├── main.py       # FastAPI app factory, CORS, /healthz
-│   │       ├── api/
-│   │       │   └── endpoints.py # All route definitions (draft, upload, submit, etc.)
-│   │       └── core/
-│   │           ├── config.py      # Pydantic settings from .env
-│   │           ├── security.py    # JWT verification, auth deps, RBAC
-│   │           ├── redis.py       # RedisDraftCache client (14-day TTL)
-│   │           ├── db.py          # SQLModel engine & session
-│   │           ├── rate_limit.py  # Token bucket rate limiter (Lua script)
-│   │           └── test_security.py # Security test script (IDOR, path traversal)
-├── packages/
-│   └── database/             # Shared SQLModel schemas & Alembic migrations
-│       ├── alembic/
-│       │   ├── env.py
-│       │   ├── script.py.mako
-│       │   └── versions/
-│       │       ├── 658ba24a208f_initial_schema_migration.py
-│       │       ├── 3f92085039ed_initial_schema_migration.py
-│       │       ├── 0a29c7e5edae_add_user_id_to_assessmentfile.py
-│       │       ├── b4e71a9c3d21_make_assessment_id_nullable.py
-│       │       └── d0831c632ac8_add_review_fields_to_assessment_answers.py
-│       ├── models/
-│       │   ├── __init__.py
-│       │   ├── assessment.py
-│       │   ├── answer.py
-│       │   └── file.py
-│       ├── alembic.ini
-│       ├── pyproject.toml
-│       ├── run_migrations.py
-│       ├── setup.py                  # Database package configuration
-│       ├── setup_supabase_extras.py  # Storage bucket, webhook, realtime setup
-│       ├── deploy_rls_policies.py    # SQL Row-level security deployment
-│       ├── fix_storage_permissions.py # Repair script for broken Supabase Storage permissions
-│       ├── cleanup_expired_files.py  # Maintenance script to purge unlinked files older than 24h
-│       ├── reset_dev_database.py     # Script to reset and clean test database artifacts
-│       ├── seed_nodal.py             # Seeds nodal@gmail.com with role="nodal"
-│       └── seed_user.py              # Seeds user@gmail.com with role="user"
-├── docker/
-│   ├── api.Dockerfile        # Python 3.11-slim container
-│   └── web.Dockerfile        # Node 20-alpine multi-stage build
-├── docker-compose.yml        # Local orchestration (redis, api, web)
-├── package.json              # Root workspace run scripts
-├── .env.example              # Environment variable template
-└── .env                      # Project credentials & configurations
-```
-
----
-
-## 4. Getting Started
+Follow these step-by-step instructions to get the complete MIDAS 2.0 platform running locally on your machine.
 
 ### Prerequisites
-*   **Node.js** (v20+) and **npm**
-*   **Python** (3.11+), **pip**, and **virtualenv**
-*   *Note: No local Redis installation is required since the project connects to the Redis Cloud instance configured in your environment variables.*
-
-### Local Configuration
-1. Clone the repository and navigate to the project root.
-2. Copy the environment template:
-   ```bash
-   cp .env.example .env
-   ```
-3. Open `.env` and fill in your Supabase project keys (URL, Anon key, Service role, JWT secret, and database Session Pooler URL) and your Redis Cloud credentials. Add a random string as the `WEBHOOK_SECRET` variable for webhook trigger validation.
-4. Copy the environment file into the Next.js web application so the browser client and server-side middleware can read the configuration:
-   ```bash
-   cp .env apps/web/.env
-   ```
+Before you begin, ensure you have the following installed:
+* **Node.js** (v20.0 or higher) and **npm**
+* **Python** (v3.11 or higher) and **pip**
+* **Git**
 
 ---
 
-## 5. Development Launch Commands
+### Step 1: Clone & Configure Environment
 
-### Setup Infrastructure & Databases
-1. Install database dependencies:
-   ```bash
-   pip install -e packages/database
-   ```
-2. Run Alembic schema migrations:
-   ```bash
-   python packages/database/run_migrations.py
-   ```
-3. Deploy Supabase Storage buckets, webhooks, and realtime settings:
-   ```bash
-   python packages/database/setup_supabase_extras.py
-   ```
-4. Provision the Nodal Team test account:
-   ```bash
-   python packages/database/seed_nodal.py
-   ```
-5. Provision the Standard Custodian test account:
-   ```bash
-   python packages/database/seed_user.py
-   ```
-6. Deploy Row-Level Security policies on SQL tables:
-   ```bash
-   python packages/database/deploy_rls_policies.py
-   ```
-7. (Optional) Run the cleanup job for expired files/orphaned objects:
-   ```bash
-   python packages/database/cleanup_expired_files.py
-   ```
+```bash
+# 1. Clone the repository
+git clone https://github.com/Medhansh-741/MIDAS-2.0.git
+cd MIDAS-2.0
 
----
+# 2. Copy the environment variable template
+cp .env.example .env
 
-## 6. Local Webhook Tunneling (ngrok)
-
-Because database upload events occur in the cloud (Supabase), the cloud server needs a public URL to trigger webhooks back to your local development environment:
-1. Ensure you have registered an account at [ngrok.com](https://ngrok.com) and added your auth token:
-   ```bash
-   ngrok config add-authtoken <your-auth-token>
-   ```
-2. Start the tunnel proxy from the workspace root:
-   ```bash
-   npm run tunnel
-   ```
-3. Copy the generated public HTTPS URL (e.g. `https://1234-56-78.ngrok-free.app`) and append the endpoint path:
-   ```text
-   https://1234-56-78.ngrok-free.app/api/v1/webhooks/storage
-   ```
-4. Set this string as the `WEBHOOK_TARGET_URL` inside your `.env` file before executing `setup_supabase_extras.py`.
-
----
-
-## 7. Booting the Application
-
-To run the full stack locally from the root workspace directory, run these scripts in separate terminals:
-
-*   **Launch Local tunnel**:
-    ```bash
-    npm run tunnel
-    ```
-*   **Launch FastAPI Backend (Port 8000)**:
-    ```bash
-    npm run dev:api
-    ```
-*   **Launch Next.js Frontend (Port 3000)**:
-    ```bash
-    npm run dev:web
-    ```
-
-Once loaded, navigate your browser to `http://localhost:3000`. The root URL (`/`) and the framework document page (`/guide`) are public routes and accessible anonymously. Attempting to navigate to the assessment wizard (`/dashboard`) or past submissions (`/assessments`) will route unauthenticated requests to `/login`. 
-
-Sign in with either your standard custodian credentials (`user@gmail.com` / `test123`) or the Nodal Team account (`nodal@gmail.com` / `test123`). Standard users can fill out the wizard at `/dashboard` and view past submissions at `/assessments`. Nodal users are routed to a specialized inbox at `/dashboard` where they can view, sort, and review all submissions globally, clicking into `/dashboard/[id]` for the complete detail view. From the detail view, nodal users can perform a per-question review (mark each domain as Okay or Needs Revision, add remarks), save in-progress, or submit a final review that sets the assessment status to Approved or Revision Required. Standard users see the review results (green/yellow badges with remarks) once the nodal submits. Note that manual signup has been disabled for safety.
-
----
-
-## 8. Backend Role Authorization Guidelines (Developer Guide)
-
-When writing new FastAPI endpoints in `endpoints.py`, follow these dependency-injection patterns to manage user authentication and role validation:
-
-1. **Retrieve only the User ID (Standard Auth)**:
-   If the route only needs to query/write rows owned by the current user:
-   ```python
-   @protected_router.get("/my-endpoint")
-   def get_data(user_id: str = Depends(get_current_user_id)):
-       # user_id is the string UUID parsed from the JWT
-       ...
-   ```
-
-2. **Retrieve User ID & Role (Role-Aware Querying)**:
-   If the endpoint behaves differently depending on user roles (e.g. nodal lists all, standard lists own):
-   ```python
-   @protected_router.get("/assessments")
-   def get_assessments(current_user: CurrentUser = Depends(get_current_user)):
-       # current_user.id provides the UUID string
-       # current_user.role provides the role claim ('user', 'nodal', etc.)
-       if current_user.role == "nodal":
-           ...
-   ```
-
-3. **Restrict Route to Nodal Users Only (Strict RBAC)**:
-   If the endpoint should be locked down entirely so that only Nodal accounts can query it:
-   ```python
-    @protected_router.get("/admin-settings", dependencies=[Depends(require_nodal)])
-    def get_settings():
-        ...
-    ```
-
-4. **Presigned Downloads (File Access)**:
-   The `GET /api/v1/assessments/{assessment_id}/download` endpoint generates a 60-second presigned URL for downloading evidence files directly from the Supabase `private` storage bucket. It enforces RLS constraints via JWT.
-
----
-
-## 9. Core API Endpoints
-
-The FastAPI backend exposes the following core endpoints (all prefixed with `/api/v1`):
-
-| Endpoint | Method | Purpose |
-| :--- | :--- | :--- |
-| `/draft` | POST | Auto-saves draft submissions to Redis for the current user. |
-| `/draft` | GET | Fetches the auto-saved draft for the current user. |
-| `/upload-url` | POST | Generates a presigned URL to upload a dataset file directly to Supabase Storage. |
-| `/webhooks/storage` | POST | Receives Supabase Storage webhooks when uploads complete, saving file metadata to the database. |
-| `/submit` | POST | Finalizes the assessment, moving it from Redis draft to the PostgreSQL database and calculating scores. |
-| `/assessments` | GET | Returns a list of assessments. Nodal users see all; standard users see only their own. |
-| `/assessments/{id}` | GET | Returns full detail view of a specific assessment (including answers and files). Score fields are `null` for non-nodal users. |
-| `/assessments/{id}/download` | GET | Generates a 60-second presigned URL for securely downloading the assessment file. |
-| `/assessments/{id}/review` | PUT | Nodal-only. Saves per-question review status (`okay`/`needs_revision`) and remarks in-progress. Assessment status unchanged. |
-| `/assessments/{id}/review/submit` | POST | Nodal-only. Finalises the review and sets assessment status to `approved` or `revision_required`. |
-
----
-
-## 10. Rate Limiting Developer Guide
-
-Rate limiting uses a **Token Bucket** algorithm implemented as a Lua script executed atomically in Redis. Two pre-configured instances are instantiated in `endpoints.py`:
-
-| Instance | Capacity | Fill Rate | Cost | Used On |
-|----------|----------|-----------|------|---------|
-| `rate_limiter_cost_1` | 20 | 0.33 tok/s | 1 | GET/POST draft, upload-url, assessments |
-| `rate_limiter_cost_10` | 20 | 0.33 tok/s | 10 | POST submit (expensive write) |
-
-To add rate limiting to a new endpoint:
-
-```python
-@protected_router.post("/my-endpoint", dependencies=[Depends(rate_limiter_cost_1)])
-def my_endpoint(user_id: str = Depends(get_current_user_id)):
-    ...
+# 3. Copy the env file into the web app directory
+cp .env apps/web/.env
 ```
 
-**Key behaviors:**
-- Each user gets a separate bucket keyed as `rate_limit:{user_id}`.
-- If Redis is unreachable, cost-1 requests are allowed through (fail-open); cost-10 requests return **503 Service Unavailable** to prevent data corruption under load.
-- The Lua script refills tokens based on elapsed wall-clock time (`now - last_refill`) to ensure accurate throttling even if the endpoint is called irregularly.
+> **Note on `.env` Credentials:**  
+> The `.env.example` file contains working defaults for local development. If connecting to your own Supabase project or Redis instance, update `.env` with your `NEXT_PUBLIC_SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, and `REDIS_HOST` credentials.
 
 ---
 
-## 10. Operations & Maintenance Scripts
+### Step 2: Setup Python Backend & Database
 
-The `packages/database` and `apps/api/app/core` directories contain several Python utility scripts for environment maintenance and security testing:
+```bash
+# 1. Navigate to the API app directory
+cd apps/api
 
-### Maintenance & Cleanup
-*   **`cleanup_expired_files.py`**: A database maintenance script intended to run periodically (e.g., via a daily cron job). It safely purges any abandoned, unlinked pending draft files (`assessment_id IS NULL`) older than 24 hours from both the `assessment_files` table and the `storage.objects` bucket.
-*   **`reset_dev_database.py`**: A developer utility that resets the database to a clean baseline by purging all test assessments, stuck pending uploads, and orphaned storage objects. It safely bypasses the `storage.protect_delete()` trigger by setting `storage.allow_delete_query = 'true'` within the transaction.
+# 2. Create and activate a Python virtual environment
+# On Windows PowerShell:
+python -m venv venv
+.\venv\Scripts\Activate.ps1
 
-### Security Audits & Repair
-*   **`test_security.py`**: An automated security test suite that verifies score boundary constraints (HTTP 422), filename path traversal sanitization, and IDOR/ownership checks for file linking.
-*   **`fix_storage_permissions.py`**: A database repair script that explicitly restores schema and table-level `SELECT, INSERT, UPDATE, DELETE` privileges across the `storage` and `net` schemas for `authenticated`, `anon`, and `service_role` roles. Used to resolve `403 Forbidden` and `42883 function does not exist` errors.
+# On Linux / macOS:
+python3 -m venv venv
+source venv/bin/activate
 
-### Database Seeding
-*   **`seed_nodal.py`**: Provisions the standard `nodal@gmail.com` account and attaches the `{"role": "nodal"}` claim via the Supabase Admin API.
-*   **`seed_user.py`**: Provisions the standard `user@gmail.com` account and attaches the `{"role": "user"}` claim.
+# 3. Install backend dependencies
+pip install -r requirements.txt
+
+# 4. Install shared database package in editable mode
+cd ../..
+pip install -e packages/database
+```
+
+---
+
+### Step 3: Run Database Migrations & Seed Test Users
+
+```bash
+# 1. Run Alembic schema migrations to build database tables
+python packages/database/run_migrations.py
+
+# 2. Deploy Supabase Storage buckets, webhooks, and security settings
+python packages/database/setup_supabase_extras.py
+
+# 3. Seed test user accounts
+python packages/database/seed_nodal.py   # Provisions nodal@gmail.com (Nodal Role)
+python packages/database/seed_user.py    # Provisions user@gmail.com (Standard Role)
+
+# 4. Deploy Row-Level Security (RLS) policies
+python packages/database/deploy_rls_policies.py
+```
+
+---
+
+### Step 4: Install Frontend Dependencies & Launch!
+
+Open **two separate terminal windows** from the project root directory:
+
+**Terminal 1 (Backend API - Port 8000):**
+```bash
+# Activate virtualenv if not already active, then run:
+npm run dev:api
+```
+
+**Terminal 2 (Frontend Web - Port 3000):**
+```bash
+# Install Node.js dependencies (first time only)
+npm install
+
+# Launch Next.js dev server
+npm run dev:web
+```
+
+🎉 **You're all set!** Open your browser and navigate to `http://localhost:3000`.
+
+---
+
+## 🔑 Test User Credentials
+
+Use these pre-configured test accounts to explore both user roles:
+
+| Role | Email | Password | Capabilities |
+| :--- | :--- | :--- | :--- |
+| **Data Custodian (Applicant)** | `user@gmail.com` | `test123` | Fill assessment wizard (`/dashboard`), upload CSV evidence, save Redis drafts, submit forms, view own past submissions (`/assessments`). |
+| **ICMR Nodal Officer** | `nodal@gmail.com` | `test123` | Access Nodal Inbox (`/dashboard`), inspect all global dataset submissions, download evidence CSVs, review per-domain questions (`okay`/`needs_revision`), set final status (`approved`/`revision_required`). |
+
+---
+
+## 🐳 Docker Compose Quickstart (Alternative Setup)
+
+If you prefer running the entire stack via Docker containers without installing Python or Node.js locally:
+
+```bash
+# 1. Build and start containers in background
+npm run docker:up
+# (or: docker-compose up -d)
+
+# 2. Verify containers are running
+docker-compose ps
+
+# 3. Stop containers when done
+npm run docker:down
+```
+
+---
+
+## 🏗️ System Architecture
+
+```text
++-----------------------------------------------------------------------------------+
+|                                  USER BROWSER                                     |
+|           (Applicant Submission Form  /  Nodal Reviewer Dashboard)                |
++------------------------------------------+----------------------------------------+
+                                           | HTTPS
+                                           v
++-----------------------------------------------------------------------------------+
+|                            NEXT.JS FRONTEND (apps/web)                            |
+|             [ Next.js App Router | React 19 | Supabase Client SDK ]              |
++---------------------+-------------------------------------+-----------------------+
+                      | REST API Calls                      | Direct Storage PUT (.csv)
+                      v                                     v
++-----------------------------------+         +-------------------------------------+
+|     FASTAPI BACKEND (apps/api)    |         |          SUPABASE STORAGE           |
+|  - Rate Limiter (Token Bucket)    |         | (Presigned URLs / Evidence Buckets) |
+|  - Security & Auth (JWT/Supabase) |         +------------------+------------------+
+|  - Scoring Engine (CQI & PRS)     |                            | Storage Webhook
+|  - Endpoint Handlers              |                            | POST /webhooks/storage
++---------+-----------------+-------+                            | (X-Webhook-Secret)
+          |                 |                                    v
+          v SQLModel        v Redis Client                       +---------------------------------+
++-------------------+ +-------------------+         | AssessmentFile Record           |
+| POSTGRESQL DB     | | REDIS CACHE       |         | Status updated:                 |
+| - assessments     | | - draft:{user_id} |         | "pending" -> "success"/"failed" |
+| - assessment_     | |   (TTL: 14 days)  |         +---------------------------------+
+|   answers         | | - rate_limit:     |
+| - assessment_files| |   {user_id}       |
++-------------------+ +-------------------+
+```
+
+---
+
+## 📁 Repository Directory Structure
+
+```text
+MIDAS-2.0/
+├── docs/
+│   └── HANDOVER_DOCUMENT.md   # Full project handover specification
+├── PRD.md                     # Official Product Requirements Document
+├── midas-lite-version.md      # ICMR framework specification reference
+├── apps/
+│   ├── web/                   # Next.js 16 Frontend App
+│   │   ├── src/app/           # Next.js App Router pages & API rewrites
+│   │   ├── src/components/    # Form wizard, Stepper, & Portal UI components
+│   │   ├── src/middleware.ts  # Route guards, CSP nonce injection, security headers
+│   │   └── package.json
+│   └── api/                   # FastAPI Python Backend API
+│       ├── app/
+│       │   ├── main.py        # App factory, CORS, health checks
+│       │   ├── api/
+│       │   │   └── endpoints.py # Core REST routes (draft, upload, submit, review)
+│       │   └── core/
+│       │       ├── config.py   # Settings loader from .env
+│       │       ├── db.py       # SQLModel database session engine
+│       │       ├── rate_limit.py# Token Bucket rate limiter (Redis Lua script)
+│       │       ├── redis.py    # RedisDraftCache client (14-day TTL)
+│       │       ├── security.py # Supabase auth verification & require_nodal dep
+│       │       └── test_security.py # Pytest automated test suite
+│       └── requirements.txt
+├── packages/
+│   └── database/              # Shared Database Schemas & Management Scripts
+│       ├── alembic/           # Schema migration versions
+│       ├── models/            # SQLModel table definitions (Assessment, Answer, File)
+│       ├── setup_supabase_extras.py # Storage bucket & webhook registration
+│       ├── deploy_rls_policies.py   # PostgreSQL Row-Level Security deployment
+│       ├── seed_nodal.py      # Provision nodal@gmail.com account
+│       ├── seed_user.py       # Provision user@gmail.com account
+│       ├── cleanup_expired_files.py # Maintenance script to purge unlinked files
+│       └── reset_dev_database.py    # Reset test database artifacts
+├── docker/                    # Dockerfiles for API & Web
+├── docker-compose.yml         # Container orchestration setup
+└── package.json               # Root workspace execution scripts
+```
+
+---
+
+## 🌐 Environment Variables Reference (`.env`)
+
+| Environment Variable | Category | Required | Purpose / Default Value |
+| :--- | :--- | :---: | :--- |
+| `NEXT_PUBLIC_SUPABASE_URL` | Supabase | Yes | Your Supabase project REST URL |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY` | Supabase | Yes | Public anonymous API key |
+| `SUPABASE_SERVICE_ROLE_KEY` | Supabase | Yes | Private service role key for backend verification |
+| `SUPABASE_JWT_SECRET` | Supabase | Yes | JWT Secret key for decoding user tokens |
+| `DATABASE_URL` | Database | Yes | PostgreSQL connection string (`postgresql://...`) |
+| `REDIS_HOST` | Cache | Yes | Redis server hostname (`localhost` or Redis Cloud) |
+| `REDIS_PORT` | Cache | Yes | Redis port (`6379`) |
+| `REDIS_PASSWORD` | Cache | Optional | Redis password authentication |
+| `WEBHOOK_SECRET` | Webhook | Yes | Shared secret key for verifying storage webhooks |
+| `WEBHOOK_TARGET_URL` | Webhook | Optional | Target URL for Supabase webhooks (e.g. Ngrok URL) |
+
+---
+
+## 🔌 API Endpoints Reference
+
+All endpoints are hosted under the `/api/v1` path prefix:
+
+| Endpoint | Method | Role | Description |
+| :--- | :--- | :---: | :--- |
+| `/draft` | `POST` | All Users | Auto-saves in-progress form data to Redis cache (`draft:{user_id}`). |
+| `/draft` | `GET` | All Users | Fetches current user's auto-saved draft from Redis. |
+| `/upload-url` | `POST` | All Users | Generates a 15-min presigned URL for direct CSV upload to Supabase Storage. |
+| `/webhooks/storage` | `POST` | Webhook | Webhook endpoint receiving file upload completion events from Supabase. |
+| `/submit` | `POST` | All Users | Computes CQI & PRS scores, writes assessment to PostgreSQL, clears Redis draft. |
+| `/assessments` | `GET` | All Users | Returns assessment list (Applicants: own; Nodal: all global submissions). |
+| `/assessments/{id}` | `GET` | All Users | Returns full assessment details. (Scores masked for non-nodal users). |
+| `/assessments/{id}/download` | `GET` | All Users | Generates a 60-second presigned URL for downloading evidence CSV files. |
+| `/assessments/{id}/review` | `PUT` | Nodal Only | Saves per-question review status (`okay`/`needs_revision`) & remarks in-progress. |
+| `/assessments/{id}/review/submit` | `POST` | Nodal Only | Finalizes review and sets assessment status to `approved` or `revision_required`. |
+
+---
+
+## 🛡️ Rate Limiting Policy
+
+Rate limiting uses an atomic **Token Bucket** algorithm executed in Redis via a custom Lua script (`apps/api/app/core/rate_limit.py`):
+
+- **Cost 1 Endpoints (`rate_limiter_cost_1`):** `capacity = 20`, `fill_rate = 0.33 tok/s`. Applied to `/draft`, `/upload-url`, `/assessments`, `/download`, `/review`.
+- **Cost 10 Endpoints (`rate_limiter_cost_10`):** `capacity = 20`, `fill_rate = 0.33 tok/s`. Applied to `/submit` (heavy write endpoint).
+- **Fail-Safe Behavior:** If Redis connection is down, cost-1 requests fail open (allowed), while cost-10 requests return `503 Service Unavailable`.
+
+---
+
+## 🛠️ Operational & Maintenance Scripts
+
+Running maintenance utilities from workspace root:
+
+```bash
+# 1. Run backend security test suite (IDOR, path traversal, boundary checks)
+pytest apps/api/app/core/test_security.py -v
+
+# 2. Purge abandoned unlinked upload files older than 24 hours
+python packages/database/cleanup_expired_files.py
+
+# 3. Reset development database to clean baseline (clears test submissions)
+python packages/database/reset_dev_database.py
+
+# 4. Fix Supabase storage table permissions if encountering 403 errors
+python packages/database/fix_storage_permissions.py
+```
+
+---
+
+## 🌐 Local Webhook Tunneling (Ngrok)
+
+When testing storage upload webhooks locally, Supabase Cloud requires a public HTTPS URL to deliver callbacks:
+
+```bash
+# 1. Start Ngrok tunnel proxy on backend port 8000
+npm run tunnel
+
+# 2. Copy the generated HTTPS URL (e.g., https://1234.ngrok-free.app)
+# 3. Append endpoint path: https://1234.ngrok-free.app/api/v1/webhooks/storage
+# 4. Set WEBHOOK_TARGET_URL in .env and run:
+python packages/database/setup_supabase_extras.py
+```
+
+---
+
+## ❓ Troubleshooting & FAQs
+
+<details>
+<summary><b>1. Error: 403 Forbidden on Supabase Storage upload</b></summary>
+Run the permissions repair script from the root directory:
+```bash
+python packages/database/fix_storage_permissions.py
+```
+</details>
+
+<details>
+<summary><b>2. Error: Redis connection refused</b></summary>
+Ensure Redis is running locally or check your `REDIS_HOST` and `REDIS_PORT` settings in `.env`. To start a local Redis container:
+```bash
+docker run -d --name midas_redis -p 6379:6379 redis:7-alpine
+```
+</details>
+
+<details>
+<summary><b>3. How do I test the Nodal Reviewer workflow?</b></summary>
+Log out from any applicant session and log in using `nodal@gmail.com` with password `test123`. You will automatically be routed to the Nodal Inbox at `/dashboard`.
+</details>
+
+---
+
+## 📄 License & Document References
+- **Product Requirements:** See [PRD.md](./PRD.md) for full functional and technical specifications.
+- **Handover Document:** See [docs/HANDOVER_DOCUMENT.md](./docs/HANDOVER_DOCUMENT.md) for formal handover details.
+- **ICMR Framework:** Reference guidelines available in `midas-lite-version.md`.
