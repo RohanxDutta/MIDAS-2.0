@@ -378,6 +378,11 @@ def submit_assessment(payload: SubmitInput, user_id: str = Depends(get_current_u
     return {
         "status": "success",
         "assessment_id": db_assessment.id,
+        "cqi_lite_score": db_assessment.cqi_lite_score,
+        "cqi_lite_grade": db_assessment.cqi_lite_grade,
+        "prs_lite_score": db_assessment.prs_lite_score,
+        "prs_lite_risk_band": db_assessment.prs_lite_risk_band,
+        "release_category": db_assessment.release_category,
     }
 
 
@@ -398,14 +403,6 @@ def get_assessments(
     results = db.exec(statements).all()
     # Serialize SQLModel instances to dicts
     serialized = [r.dict() for r in results]
-
-    if current_user.role != "nodal":
-        for r in serialized:
-            r["cqi_lite_score"] = None
-            r["cqi_lite_grade"] = None
-            r["prs_lite_score"] = None
-            r["prs_lite_risk_band"] = None
-            r["release_category"] = None
 
     return serialized
 
@@ -444,14 +441,6 @@ def get_assessment_detail(
         "answers": [a.dict() for a in answers],
         "files": [f.dict() for f in files],
     }
-
-    # Standard users must not see their own scores
-    if current_user.role != "nodal":
-        result["cqi_lite_score"] = None
-        result["cqi_lite_grade"] = None
-        result["prs_lite_score"] = None
-        result["prs_lite_risk_band"] = None
-        result["release_category"] = None
 
     return result
 

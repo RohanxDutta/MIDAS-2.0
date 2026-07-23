@@ -28,32 +28,44 @@ def get_current_user(authorization: str = Header(None)) -> CurrentUser:
             )
         
         # Verify the user token with the Supabase Auth server (algorithm-agnostic & secure)
-        url = f"{settings.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/user"
-        headers = {
-            "apikey": settings.SUPABASE_SERVICE_ROLE_KEY,
-            "Authorization": f"Bearer {token}"
-        }
-        res = requests.get(url, headers=headers, timeout=5)
-        if res.status_code != 200:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail=f"Unauthorized session: Supabase verification returned status code {res.status_code}"
-            )
-        
-        payload = res.json()
-        user_id = payload.get("id")
+        try:
+            url = f"{settings.NEXT_PUBLIC_SUPABASE_URL}/auth/v1/user"
+            headers = {
+                "apikey": settings.SUPABASE_SERVICE_ROLE_KEY,
+                "Authorization": f"Bearer {token}"
+            }
+            res = requests.get(url, headers=headers, timeout=15)
+            if res.status_code == 200:
+                payload = res.json()
+                user_id = payload.get("id")
+                if user_id:
+                    app_metadata = payload.get("app_metadata", {})
+                    role = app_metadata.get("role", "user")
+                    return CurrentUser(id=user_id, role=role)
+        except requests.exceptions.RequestException:
+            # Network issue or timeout reaching Supabase server: fall back to local JWT validation
+            pass
+
+        # Local JWT validation fallback using SUPABASE_JWT_SECRET
+        payload = jwt.decode(
+            token,
+            settings.SUPABASE_JWT_SECRET,
+            algorithms=["HS256"],
+            options={"verify_aud": False}
+        )
+        user_id = payload.get("sub") or payload.get("id")
         if not user_id:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid user response from Supabase: missing id",
+                detail="Invalid user token: missing user ID claim",
             )
             
-        # Extract the user's role from app_metadata (server-only, tamper-proof)
         app_metadata = payload.get("app_metadata", {})
         role = app_metadata.get("role", "user")
-            
         return CurrentUser(id=user_id, role=role)
 
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
