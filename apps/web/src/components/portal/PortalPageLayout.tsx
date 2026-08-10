@@ -1,12 +1,13 @@
 'use client';
 
 import { useEffect } from 'react';
+import type { User } from '@supabase/supabase-js';
 import { PortalNav } from './PortalNav';
 import { PortalFooter } from './PortalFooter';
 
 interface PortalPageLayoutProps {
   children: React.ReactNode;
-  user?: any;
+  user?: User | null;
   onLogout?: () => void;
   showFooter?: boolean;
 }

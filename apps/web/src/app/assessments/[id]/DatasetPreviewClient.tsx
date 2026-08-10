@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import type { User } from '@supabase/supabase-js'
 import {
   ChevronLeft,
   Loader2,
@@ -15,16 +15,16 @@ import {
 import { PortalPageLayout } from '@/components/portal/PortalPageLayout'
 import { supabase } from '@/lib/supabase'
 import { normalizeStatus, type Submission } from '@/app/dashboard/nodal-data'
+import { NodalReviewForm } from '@/components/nodal/NodalReviewForm'
 
 export default function DatasetPreviewClient({
   id,
   initialUser,
 }: {
   id: string
-  initialUser?: any
+  initialUser?: User | null
 }) {
-  const router = useRouter()
-  const [user, setUser] = useState<any>(initialUser)
+  const [user, setUser] = useState<User | null>(initialUser ?? null)
   const [assessment, setAssessment] = useState<Submission | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const [fetchError, setFetchError] = useState<string | null>(null)
@@ -81,9 +81,9 @@ export default function DatasetPreviewClient({
           date_of_assessment: data.date_of_assessment || data.created_at?.split('T')[0] || '',
         })
         hasFetchedOnce.current = true
-      } catch (err: any) {
+      } catch (err) {
         console.error('Error fetching assessment detail:', err)
-        setFetchError(err.message || 'Failed to load assessment')
+        setFetchError(err instanceof Error ? err.message : 'Failed to load assessment')
       } finally {
         setIsLoading(false)
       }
@@ -134,9 +134,9 @@ export default function DatasetPreviewClient({
   }
 
   // Calculations for UI presentation
-  const domain11Na = !(assessment.answers || []).some((a: any) => a.domain_id === 11)
+  const domain11Na = !(assessment.answers || []).some((a) => a.domain_id === 11)
   const answeredDomainsCount = (assessment.answers || []).length
-  const primaryFile = (assessment.files || []).find((f: any) => f.status === 'success')
+  const primaryFile = (assessment.files || []).find((f) => f.status === 'success')
 
   return (
     <PortalPageLayout user={user} onLogout={handleLogout} showFooter={false}>
@@ -296,6 +296,22 @@ export default function DatasetPreviewClient({
               )}
             </div>
           </div>
+          {/* ===========================
+              Nodal Review
+          =========================== */}
+
+      {(user?.app_metadata?.role ?? user?.user_metadata?.role) === 'nodal' && (
+        <NodalReviewForm
+          submission={assessment}
+          onReviewComplete={(updated: Submission) => {
+            setAssessment(updated);
+          }}
+          custodianAnswers={assessment.answers}
+          custodianIdentificationRisk={0}
+          custodianSensitivityMultiplier={1}
+          domain11Na={domain11Na}
+        />
+       )}
         </div>
       </section>
     </PortalPageLayout>

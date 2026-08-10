@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react'
 import Link from 'next/link'
-import { useRouter } from 'next/navigation'
+import type { User as SupabaseUser } from '@supabase/supabase-js'
 import {
   ChevronLeft,
   Download,
@@ -25,6 +25,7 @@ import { PortalNav } from '@/components/portal/PortalNav'
 import { supabase } from '@/lib/supabase'
 import { normalizeStatus, type Submission, type SubmissionStatus } from '../nodal-data'
 import { domainsData } from '@/lib/domainsData'
+import { nodalQuestions } from '@/lib/nodalQuestions'
 
 const STATUS_COLORS: Record<SubmissionStatus, string> = {
   'Submitted': 'bg-amber-50 text-amber-700 border-amber-200',
@@ -41,12 +42,11 @@ function formatFileSize(bytes: number): string {
 
 interface DatasetDetailClientProps {
   id: string
-  initialUser?: any
+  initialUser?: SupabaseUser | null
 }
 
 export default function DatasetDetailClient({ id, initialUser }: DatasetDetailClientProps) {
-  const router = useRouter()
-  const [user, setUser] = useState<any>(initialUser)
+  const [user, setUser] = useState<SupabaseUser | null>(initialUser ?? null)
   const [isDownloading, setIsDownloading] = useState(false)
 
   // Determine back navigation dynamically
@@ -60,7 +60,16 @@ export default function DatasetDetailClient({ id, initialUser }: DatasetDetailCl
   const [fetchError, setFetchError] = useState<string | null>(null)
 
   // Nodal review state
-  const [reviewState, setReviewState] = useState<Record<number, { review_status: string | null; reviewer_remarks: string | null }>>({})
+  const [reviewState, setReviewState] = useState<
+    Record<
+    number,
+    {
+    review_status:string|null;
+    reviewer_remarks:string|null;
+    review_score:number|null;
+    }
+    >
+    >({})
   const [isSaving, setIsSaving] = useState(false)
   const [saveMessage, setSaveMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null)
   const [showSubmitDialog, setShowSubmitDialog] = useState(false)
@@ -118,9 +127,9 @@ export default function DatasetDetailClient({ id, initialUser }: DatasetDetailCl
           date_of_assessment: data.date_of_assessment || data.created_at?.split('T')[0] || '',
         })
         hasFetchedOnce.current = true
-      } catch (err: any) {
+      } catch (err) {
         console.error('Error fetching assessment detail:', err)
-        setFetchError(err.message || 'Failed to load assessment')
+        setFetchError(err instanceof Error ? err.message : 'Failed to load assessment')
       } finally {
         setIsLoading(false)
       }
@@ -130,6 +139,25 @@ export default function DatasetDetailClient({ id, initialUser }: DatasetDetailCl
       fetchDetail()
     }
   }, [user?.id, id])
+
+  // Initialize reviewState from API data once
+  useEffect(() => {
+    if (assessment?.answers && !initializedReview.current) {
+      initializedReview.current = true
+      const initialReviewState: Record<
+        number,
+        { review_status: string | null; reviewer_remarks: string | null; review_score: number | null }
+      > = {}
+      for (const ans of assessment.answers) {
+        initialReviewState[ans.domain_id] = {
+          review_status: ans.review_status ?? null,
+          reviewer_remarks: ans.reviewer_remarks ?? null,
+          review_score: ans.score ?? null,
+        }
+      }
+      setReviewState(initialReviewState)
+    }
+  }, [assessment])
 
   const handleLogout = async () => {
     try {
@@ -169,9 +197,9 @@ export default function DatasetDetailClient({ id, initialUser }: DatasetDetailCl
       if (data.download_url) {
         window.open(data.download_url, '_blank')
       }
-    } catch (err: any) {
+    } catch (err) {
       console.error('Download error:', err)
-      alert(`Download failed: ${err.message}`)
+      alert(`Download failed: ${err instanceof Error ? err.message : String(err)}`)
     } finally {
       setIsDownloading(false)
     }
@@ -227,41 +255,11 @@ export default function DatasetDetailClient({ id, initialUser }: DatasetDetailCl
     }
   }
 
-  // Initialize reviewState from API data on first load
-  if (assessment.answers && !initializedReview.current) {
-    const initialReviewState: Record<number, { review_status: string | null; reviewer_remarks: string | null }> = {}
-    for (const ans of assessment.answers) {
-      initialReviewState[ans.domain_id] = {
-        review_status: ans.review_status ?? null,
-        reviewer_remarks: ans.reviewer_remarks ?? null,
-      }
-    }
-    setReviewState(initialReviewState)
-    initializedReview.current = true
-  }
-
   // Nodal review handlers
-  const handleReviewStatus = (domainId: number, status: string) => {
-    setReviewState((prev) => ({
-      ...prev,
-      [domainId]: {
-        review_status: status,
-        reviewer_remarks: status === 'okay' ? null : (prev[domainId]?.reviewer_remarks ?? null),
-      },
-    }))
-  }
-
-  const handleReviewRemarks = (domainId: number, remarks: string) => {
-    setReviewState((prev) => ({
-      ...prev,
-      [domainId]: {
-        ...prev[domainId],
-        reviewer_remarks: remarks,
-      },
-    }))
-  }
+  
 
   const handleSaveReview = async () => {
+    console.log("Save Draft clicked");
     setIsSaving(true)
     setSaveMessage(null)
     try {
@@ -271,16 +269,18 @@ export default function DatasetDetailClient({ id, initialUser }: DatasetDetailCl
       const reviews = Object.entries(reviewState)
         .map(([domainId, r]) => ({
           domain_id: Number(domainId),
+          review_score:r.review_score,
           review_status: r.review_status,
           reviewer_remarks: r.reviewer_remarks,
         }))
-        .filter((r) => r.review_status !== null)
+        .filter((r) => r.review_status !== null && r.review_score !== null)
 
       const res = await fetch(`/api/v1/assessments/${id}/review`, {
         method: 'PUT',
         headers: { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ reviews }),
       })
+      console.log("HTTP Status:", res.status);
 
       if (!res.ok) {
         const err = await res.json()
@@ -288,8 +288,8 @@ export default function DatasetDetailClient({ id, initialUser }: DatasetDetailCl
       }
 
       setSaveMessage({ type: 'success', text: 'Review saved successfully' })
-    } catch (err: any) {
-      setSaveMessage({ type: 'error', text: err.message || 'Failed to save review' })
+    } catch (err) {
+      setSaveMessage({ type: 'error', text: err instanceof Error ? err.message : 'Failed to save review' })
     } finally {
       setIsSaving(false)
       setTimeout(() => setSaveMessage(null), 3000)
@@ -297,6 +297,7 @@ export default function DatasetDetailClient({ id, initialUser }: DatasetDetailCl
   }
 
   const handleSubmitReview = async (assessmentStatus: string) => {
+    console.log("Submit Review clicked");
     setIsSaving(true)
     setSaveMessage(null)
     try {
@@ -304,18 +305,20 @@ export default function DatasetDetailClient({ id, initialUser }: DatasetDetailCl
       if (!session) return
 
       const reviews = Object.entries(reviewState)
-        .map(([domainId, r]) => ({
-          domain_id: Number(domainId),
-          review_status: r.review_status,
-          reviewer_remarks: r.reviewer_remarks,
+        .map(([domainId,r])=>({
+            domain_id:Number(domainId),
+            review_score:r.review_score,
+            review_status:r.review_status,
+            reviewer_remarks:r.reviewer_remarks,
         }))
-        .filter((r) => r.review_status !== null)
+        .filter((r) => r.review_status !== null && r.review_score !== null)
 
       const res = await fetch(`/api/v1/assessments/${id}/review/submit`, {
         method: 'POST',
         headers: { Authorization: `Bearer ${session.access_token}`, 'Content-Type': 'application/json' },
         body: JSON.stringify({ reviews, assessment_status: assessmentStatus }),
       })
+      console.log("Submit Status:", res.status);
 
       if (!res.ok) {
         const err = await res.json()
@@ -340,8 +343,8 @@ export default function DatasetDetailClient({ id, initialUser }: DatasetDetailCl
           })
         }
       }
-    } catch (err: any) {
-      setSaveMessage({ type: 'error', text: err.message || 'Failed to submit review' })
+    } catch (err) {
+      setSaveMessage({ type: 'error', text: err instanceof Error ? err.message : 'Failed to submit review' })
     } finally {
       setIsSaving(false)
       setTimeout(() => setSaveMessage(null), 3000)
@@ -350,9 +353,22 @@ export default function DatasetDetailClient({ id, initialUser }: DatasetDetailCl
 
   // Derived review counts
   const reviewEntries = Object.values(reviewState)
-  const greenCount = reviewEntries.filter((r) => r.review_status === 'okay').length
+  const greenCount =
+    reviewEntries.filter(
+    r=>r.review_status==="approved"
+    ).length
   const yellowCount = reviewEntries.filter((r) => r.review_status === 'needs_revision').length
   const unreviewedCount = 15 - greenCount - yellowCount
+  const unansweredMcqs =
+    Object.values(reviewState)
+        .filter(r => r.review_score === null)
+        .length
+  const totalDomains = domainsData.length
+  const canApprove =
+    unansweredMcqs === 0 &&
+    greenCount === domainsData.length &&
+    yellowCount === 0 &&
+    unreviewedCount === 0
 
   return (
     <div className="portal-home-page h-screen w-screen overflow-hidden bg-portal text-brand-navy">
@@ -390,7 +406,7 @@ export default function DatasetDetailClient({ id, initialUser }: DatasetDetailCl
           </div>
 
           {/* MAIN DOWNLOAD ACTION BUTTON */}
-          {hasFile && (
+          {hasFile && assessment.status === "Approved" && (
             <button
               onClick={handleDownload}
               disabled={isDownloading}
@@ -549,7 +565,7 @@ export default function DatasetDetailClient({ id, initialUser }: DatasetDetailCl
                   <div
                     key={dom.id}
                     className={`p-4 rounded-[16px] border bg-white transition-all shadow-2xs ${
-                      reviewState[dom.id]?.review_status === 'okay'
+                      reviewState[dom.id]?.review_status === 'approved'
                         ? 'border-emerald-400'
                         : reviewState[dom.id]?.review_status === 'needs_revision'
                         ? 'border-amber-400'
@@ -582,127 +598,183 @@ export default function DatasetDetailClient({ id, initialUser }: DatasetDetailCl
                       </div>
                     </div>
 
-                    {/* Nodal Review Controls — only for nodal users */}
-                    {isNodal && (
-                      <div className="mt-4 pt-3 border-t border-brand-border/40">
-                        <span className="text-[10px] font-bold text-brand-slate uppercase tracking-wider mb-2 block">Nodal Review</span>
-                        <div className="flex items-center gap-2 mb-3">
-                          <button
-                            type="button"
-                            onClick={() => handleReviewStatus(dom.id, 'okay')}
-                            className={`px-3 py-1.5 text-xs font-semibold rounded-full border transition-all cursor-pointer flex items-center gap-1.5 ${
-                              reviewState[dom.id]?.review_status === 'okay'
-                                ? 'bg-emerald-50 text-emerald-700 border-emerald-400'
-                                : 'bg-white text-brand-slate border-brand-border hover:border-emerald-300 hover:text-emerald-600'
-                            }`}
-                          >
-                            <CheckCircle2 className="w-3.5 h-3.5" /> Okay
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => handleReviewStatus(dom.id, 'needs_revision')}
-                            className={`px-3 py-1.5 text-xs font-semibold rounded-full border transition-all cursor-pointer flex items-center gap-1.5 ${
-                              reviewState[dom.id]?.review_status === 'needs_revision'
-                                ? 'bg-amber-50 text-amber-700 border-amber-400'
-                                : 'bg-white text-brand-slate border-brand-border hover:border-amber-300 hover:text-amber-600'
-                            }`}
-                          >
-                            <MessageSquare className="w-3.5 h-3.5" /> Needs Revision
-                          </button>
-                        </div>
-                        {reviewState[dom.id]?.review_status === 'needs_revision' && (
-                          <textarea
-                            placeholder="Write your review remarks for this domain..."
-                            value={reviewState[dom.id]?.reviewer_remarks ?? ''}
-                            onChange={(e) => handleReviewRemarks(dom.id, e.target.value)}
-                            rows={3}
-                            className="w-full text-xs text-brand-navy bg-white border border-brand-border/60 rounded-[10px] p-2.5 placeholder:text-brand-slate/50 focus:outline-none focus:border-brand-blue/42 focus:ring-[3px] focus:ring-brand-blue/12 transition-all resize-none"
-                          />
-                        )}
-                      </div>
-                    )}
+                    
 
-                    {/* Nodal Review Results — visible to assessors after review is submitted */}
-                    {!isNodal && reviewState[dom.id]?.review_status && (
-                      <div className="mt-4 pt-3 border-t border-brand-border/40">
-                        <span className="text-[10px] font-bold text-brand-slate uppercase tracking-wider mb-2 block">
-                          Nodal Review Result
-                        </span>
-                        <div className="flex items-center gap-2 mb-2">
-                          {reviewState[dom.id]?.review_status === 'okay' ? (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold rounded-full bg-emerald-50 text-emerald-700 border border-emerald-300">
-                              <CheckCircle2 className="w-3 h-3" /> Okay
-                            </span>
-                          ) : (
-                            <span className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-bold rounded-full bg-amber-50 text-amber-700 border border-amber-300">
-                              <MessageSquare className="w-3 h-3" /> Needs Revision
-                            </span>
-                          )}
-                        </div>
-                        {reviewState[dom.id]?.review_status === 'needs_revision' && reviewState[dom.id]?.reviewer_remarks && (
-                          <div className="bg-amber-50/50 border border-amber-200 rounded-[10px] p-3 text-xs text-brand-navy leading-relaxed">
-                            <span className="font-bold text-amber-800 block mb-1">Reviewer Remarks:</span>
-                            {reviewState[dom.id]?.reviewer_remarks}
+                    {/* ===========================
+                            TECHNICAL NODAL REVIEW
+                        =========================== */}
+
+                        {isNodal && (
+                          <div className="mt-6 border-t pt-6">
+
+                            <h3 className="text-lg font-bold text-brand-navy mb-4">
+                              Technical Nodal Review
+                            </h3>
+
+                            {nodalQuestions
+                              .find((d) => d.id === dom.id)
+                              ?.scores.map((option) => (
+                                <label
+                                  key={option.score}
+                                  className="flex items-start gap-3 border rounded-xl p-4 mb-3 cursor-pointer hover:border-brand-blue"
+                                >
+                                  <input
+                                    type="radio"
+                                    name={`review-score-${dom.id}`}
+                                    checked={
+                                      reviewState[dom.id]?.review_score === option.score
+                                    }
+                                    onChange={() =>
+                                      setReviewState((prev) => ({
+                                        ...prev,
+                                        [dom.id]: {
+                                          ...prev[dom.id],
+                                          review_score: option.score,
+                                        },
+                                      }))
+                                    }
+                                  />
+
+                                  <div>
+                                    <div className="font-bold">
+                                      Option {String.fromCharCode(65 + option.score)}
+                                    </div>
+
+                                    <div className="text-sm text-brand-slate">
+                                      {option.description}
+                                    </div>
+                                  </div>
+                                </label>
+                              ))}
+
                           </div>
                         )}
-                      </div>
-                    )}
-                  </div>
-                )
-              })}
-            </div>
 
-            {/* NODAL REVIEW ACTION BAR */}
-            {isNodal && (
-              <div className="sticky bottom-0 bg-white/95 backdrop-blur-sm border-t border-brand-border/60 -mx-6 -mb-6 px-6 py-4 rounded-b-[24px] mt-auto">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3 text-xs font-semibold">
-                    <span className="flex items-center gap-1 text-emerald-600">
-                      <CheckCircle2 className="w-3.5 h-3.5" /> {greenCount} Okay
-                    </span>
-                    <span className="flex items-center gap-1 text-amber-600">
-                      <MessageSquare className="w-3.5 h-3.5" /> {yellowCount} Needs Revision
-                    </span>
-                    <span className="text-brand-slate">
-                      {unreviewedCount} Unreviewed
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    {saveMessage && (
-                      <span
-                        className={`text-xs font-semibold ${
-                          saveMessage.type === 'success' ? 'text-emerald-600' : 'text-rose-600'
-                        }`}
-                      >
-                        {saveMessage.text}
-                      </span>
-                    )}
-                    <button
-                      type="button"
-                      onClick={handleSaveReview}
-                      disabled={isSaving}
-                      className="px-4 py-2 bg-brand-blue hover:bg-brand-blue-hover disabled:bg-brand-blue/60 text-white font-semibold text-xs rounded-full transition-all flex items-center gap-1.5 cursor-pointer shrink-0"
-                    >
-                      {isSaving ? (
-                        <Loader2 className="w-3.5 h-3.5 animate-spin" />
-                      ) : (
-                        <Save className="w-3.5 h-3.5" />
-                      )}
-                      Save Review
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setShowSubmitDialog(true)}
-                      disabled={isSaving}
-                      className="px-4 py-2 border border-brand-blue text-brand-blue hover:bg-brand-blue hover:text-white font-semibold text-xs rounded-full transition-all flex items-center gap-1.5 cursor-pointer shrink-0 disabled:opacity-50"
-                    >
-                      Submit Review
-                    </button>
+                          {/* Decision */}
+
+                          <div className="mt-6">
+
+                            <h4 className="font-semibold text-brand-navy mb-3">
+                              Review Decision
+                            </h4>
+
+                            <div className="flex gap-6">
+
+                              <label className="flex items-center gap-2">
+
+                                <input
+                                  type="radio"
+                                  name={`decision-${dom.id}`}
+                                  checked={
+                                  reviewState[dom.id]?.review_status==="approved"
+                                  }
+                                  onChange={() =>
+                                  setReviewState(prev => ({
+                                      ...prev,
+                                      [dom.id]:{
+                                          ...prev[dom.id],
+                                          review_status: "approved",
+                                          reviewer_remarks: null,
+                                      }
+                                  }))
+                                  }
+                                />
+
+                                Approve
+
+                              </label>
+
+                              <label className="flex items-center gap-2">
+
+                                <input
+                                  type="radio"
+                                  name={`decision-${dom.id}`}
+                                 checked={
+                                reviewState[dom.id]?.review_status==="needs_revision"
+                                }
+                                  onChange={() =>
+                                    setReviewState(prev => ({
+                                      ...prev,
+                                      [dom.id]:{
+                                          ...prev[dom.id],
+                                          review_status:"needs_revision",
+                                          reviewer_remarks:
+                                            prev[dom.id]?.reviewer_remarks ?? ""
+                                      }
+                                    }))
+                                  }
+                                />
+
+                                Needs Revision
+
+                              </label>
+
+                            </div>
+
+                          </div>
+
+                          {/* Revision Comment */}
+
+                          {reviewState[dom.id]?.review_status === "needs_revision" && (
+
+                            <div className="mt-5">
+
+                              <label className="block text-sm font-semibold mb-2">
+                                Revision Required
+                              </label>
+
+                              <textarea
+                                rows={3}
+                                className="w-full border rounded-xl p-3"
+                                placeholder="Mention what evidence or clarification is required..."
+                                value={reviewState[dom.id]?.reviewer_remarks ?? ""}
+                                onChange={(e)=>
+                                  setReviewState(prev=>({
+                                    ...prev,
+                                    [dom.id]:{
+                                      ...prev[dom.id],
+                                      reviewer_remarks:e.target.value
+                                    }
+                                  }))
+                                }
+                              />
+
+                            </div>
+
+                          )}
+
+                        </div>
+                      )
+                    })}
                   </div>
                 </div>
-              </div>
-            )}
-          </div>
+
+                {isNodal && (
+                <div className="mt-8 flex justify-end gap-3 border-t pt-6">
+
+                    <button
+                        type="button"
+                        onClick={handleSaveReview}
+                        disabled={isSaving}
+                        className="px-5 py-2 rounded-full border border-brand-blue text-brand-blue hover:bg-brand-blue hover:text-white font-semibold flex items-center gap-2"
+                    >
+                        <Save className="w-4 h-4"/>
+                        Save Draft
+                    </button>
+
+                    <button
+                        type="button"
+                        onClick={() => setShowSubmitDialog(true)}
+                        disabled={isSaving}
+                        className="px-6 py-2 rounded-full bg-brand-blue text-white font-semibold hover:bg-brand-blue-hover"
+                    >
+                        Submit Review
+                    </button>
+
+                </div>
+                )}
+
+            
 
           {/* SUBMIT REVIEW CONFIRMATION MODAL */}
           {isNodal && showSubmitDialog && (
@@ -722,6 +794,12 @@ export default function DatasetDetailClient({ id, initialUser }: DatasetDetailCl
                   <p className="text-brand-navy font-semibold">
                     Review Summary
                   </p>
+                    <p className="text-xs text-brand-slate mt-2">
+
+                    Pending MCQs :
+                    <b>{unansweredMcqs}</b>
+
+                    </p>
                   <div className="flex items-center gap-4">
                     <span className="flex items-center gap-1 text-emerald-600 font-semibold">
                       <CheckCircle2 className="w-3.5 h-3.5" /> {greenCount} Okay
@@ -748,7 +826,7 @@ export default function DatasetDetailClient({ id, initialUser }: DatasetDetailCl
                   <button
                     type="button"
                     onClick={() => handleSubmitReview('approved')}
-                    disabled={isSaving}
+                    disabled={isSaving || !canApprove}
                     className="flex-1 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 disabled:bg-emerald-600/60 text-white font-semibold text-xs rounded-full transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                   >
                     {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
@@ -757,7 +835,7 @@ export default function DatasetDetailClient({ id, initialUser }: DatasetDetailCl
                   <button
                     type="button"
                     onClick={() => handleSubmitReview('revision_required')}
-                    disabled={isSaving}
+                    disabled={isSaving || yellowCount === 0}
                     className="flex-1 px-4 py-2 bg-rose-600 hover:bg-rose-700 disabled:bg-rose-600/60 text-white font-semibold text-xs rounded-full transition-all flex items-center justify-center gap-1.5 cursor-pointer"
                   >
                     {isSaving ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <MessageSquare className="w-3.5 h-3.5" />}
@@ -777,7 +855,7 @@ export default function DatasetDetailClient({ id, initialUser }: DatasetDetailCl
           )}
         </div>
       </section>
-      </div>
-    </div>
+     </div>
+    </div> 
   )
-}
+} 

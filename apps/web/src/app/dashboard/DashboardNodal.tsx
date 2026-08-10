@@ -3,6 +3,7 @@
 import { useState, useMemo, useEffect, useRef } from 'react'
 import Link from 'next/link'
 import { useRouter } from 'next/navigation'
+import type { User } from '@supabase/supabase-js'
 import { Search, ArrowUpDown, ArrowUp, ArrowDown, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react'
 import { PortalPageLayout } from '@/components/portal/PortalPageLayout'
 import { supabase } from '@/lib/supabase'
@@ -55,9 +56,9 @@ function StatusBadge({ status }: { status: SubmissionStatus }) {
   )
 }
 
-export default function DashboardNodal({ initialUser }: { initialUser?: any }) {
+export default function DashboardNodal({ initialUser }: { initialUser?: User | null }) {
   const router = useRouter()
-  const [user, setUser] = useState<any>(initialUser)
+  const [user, setUser] = useState<User | null>(initialUser ?? null)
   const [searchQuery, setSearchQuery] = useState('')
   const [statusFilter, setStatusFilter] = useState<SubmissionStatus | 'All'>('All')
   const [sortColumn, setSortColumn] = useState<SortColumn>('date_of_assessment')
@@ -111,7 +112,7 @@ export default function DashboardNodal({ initialUser }: { initialUser?: any }) {
         const data = await res.json()
 
         // Normalize status from DB format to UI format
-        const normalized: Submission[] = data.map((row: any) => ({
+        const normalized: Submission[] = data.map((row: Submission) => ({
           ...row,
           id: String(row.id),
           status: normalizeStatus(row.status || 'submitted'),
@@ -120,9 +121,9 @@ export default function DashboardNodal({ initialUser }: { initialUser?: any }) {
 
         setSubmissions(normalized)
         hasFetchedOnce.current = true
-      } catch (err: any) {
+      } catch (err) {
         console.error('Error fetching assessments:', err)
-        setFetchError(err.message || 'Failed to load assessments')
+        setFetchError(err instanceof Error ? err.message : 'Failed to load assessments')
       } finally {
         setIsLoading(false)
       }

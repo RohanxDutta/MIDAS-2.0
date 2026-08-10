@@ -1,6 +1,6 @@
 import { FileCheck, Printer, PlusCircle, Award, Lock, ShieldCheck } from 'lucide-react';
 
-interface SubmissionResult {
+export interface SubmissionResult {
   assessment_id: string;
   cqi_lite_score?: number;
   cqi_lite_grade?: string;

@@ -1,11 +1,12 @@
 import { BookOpen } from 'lucide-react';
 import { domainsData } from '@/lib/domainsData';
+import { Paperclip } from 'lucide-react';
 
 interface QualityDomainFormProps {
   activeDomainIdx: number;
-  answers: { [key: number]: { score: number; factual_description: string } };
+  answers: { [key: number]: { score: number|null ; factual_description: string; evidence_file?: File | null; } };
   setAnswers: React.Dispatch<
-    React.SetStateAction<{ [key: number]: { score: number; factual_description: string } }>
+    React.SetStateAction<{ [key: number]: { score: number | null; factual_description: string; evidence_file?: File | null; } }>
   >;
   domain11Na: boolean;
   setDomain11Na: (val: boolean) => void;
@@ -21,14 +22,14 @@ export function QualityDomainForm({
   const currentDomain = domainsData[activeDomainIdx];
   const domId = currentDomain.id;
   const isNaActive = domId === 11 && domain11Na;
-  const currentAnswer = answers[domId] || { score: 0, factual_description: '' };
+  const currentAnswer = answers[domId] || { score: null, factual_description: '', evidence_file: null, };
   const LABELS = ['A', 'B', 'C', 'D', 'E'];
 
   const handleScoreSelect = (score: number) => {
     setAnswers((prev) => ({
       ...prev,
       [domId]: {
-        ...prev[domId],
+        ...(prev[domId] || { factual_description: '' }),
         score,
       },
     }));
@@ -38,7 +39,7 @@ export function QualityDomainForm({
     setAnswers((prev) => ({
       ...prev,
       [domId]: {
-        ...prev[domId],
+        ...(prev[domId] || { score: null }),
         factual_description: text,
       },
     }));
@@ -99,7 +100,7 @@ export function QualityDomainForm({
           <div className="space-y-3">
             <div className="flex flex-col space-y-2.5">
               {[0, 1, 2, 3, 4].map((scoreVal) => {
-                const isSelected = currentAnswer.score === scoreVal;
+                const isSelected = currentAnswer.score !== null && currentAnswer.score === scoreVal;
                 return (
                   <button
                     key={scoreVal}
@@ -138,7 +139,7 @@ export function QualityDomainForm({
           {/* Expanded Justification input block */}
           <div className="space-y-2">
             <label className="block text-[10px] font-extrabold uppercase tracking-wider text-brand-slate">
-              Factual Justification *
+              Justification 
             </label>
             <textarea
               required
@@ -149,7 +150,40 @@ export function QualityDomainForm({
               className="w-full bg-white border border-brand-border rounded-[14px] px-4 py-3 text-xs text-brand-navy placeholder-brand-slate/55 focus:outline-none focus:border-brand-blue/42 focus:ring-[3px] focus:ring-brand-blue/12 transition-all leading-relaxed shadow-3xs"
             />
           </div>
-        </div>
+            {/* ✅ FILE ATTACHMENT STARTS HERE */}
+            <div className="mt-2 flex items-center justify-between border border-dashed border-brand-border rounded-xl px-3 py-2 bg-white">
+
+              <div className="flex items-center gap-2 text-xs text-brand-slate">
+                <Paperclip className="w-4 h-4" />
+                <span>Attach file</span>
+              </div>
+
+              <label className="cursor-pointer text-xs text-brand-blue font-semibold">
+                Browse
+                <input
+                  type="file"
+                  accept=".pdf,.doc,.docx,.ppt,.pptx"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+
+                    setAnswers((prev) => ({
+                      ...prev,
+                      [domId]: {
+                        ...(prev[domId] || {
+                          score: null,
+                          factual_description: '',
+                        }),
+                        evidence_file: file, // 🔴 IMPORTANT
+                      },
+                    }));
+                  }}
+                />
+              </label>
+            </div>
+            {/* ✅ FILE ATTACHMENT ENDS HERE */}
+          </div>
       )}
     </div>
   );

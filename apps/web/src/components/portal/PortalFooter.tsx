@@ -2,6 +2,7 @@ export function PortalFooter() {
   return (
     <footer className="!py-3.5 shrink-0">
       <div className="footer-left">
+        {/* eslint-disable-next-line @next/next/no-img-element -- local SVG logo; next/image blocks SVGs */}
         <img className="footer-logo" src="/logo.svg" alt="ICMR" />
         <p className="footer-text">
           Prepared by the <strong>Division of Development Research</strong>,<br />

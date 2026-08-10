@@ -1,8 +1,10 @@
-import { Check, CheckCircle2 } from 'lucide-react';
+import { Check } from 'lucide-react';
+
+type StepId = 'metadata' | 'domains' | 'prs' | 'upload' | 'review';
 
 interface StepperProps {
   currentStep: 'metadata' | 'domains' | 'prs' | 'upload' | 'review' | 'success';
-  setStep: (step: 'metadata' | 'domains' | 'prs' | 'upload' | 'review') => void;
+  setStep: (step: StepId) => void;
   isMetadataComplete: boolean;
   isDomainsComplete: boolean;
   isPrsComplete: boolean;
@@ -25,7 +27,7 @@ export function Stepper({
   isDomainAnswered,
   domain11Na,
 }: StepperProps) {
-  const steps = [
+  const steps: { id: StepId; num: number; label: string; isComplete: boolean }[] = [
     { id: 'metadata', num: 1, label: 'Dataset Basics', isComplete: isMetadataComplete },
     { id: 'domains', num: 2, label: 'Quality Domains', isComplete: isDomainsComplete },
     { id: 'prs', num: 3, label: 'Privacy & Governance', isComplete: isPrsComplete },
@@ -35,10 +37,10 @@ export function Stepper({
 
   const activeIdx = steps.findIndex((s) => s.id === currentStep);
 
-  const handleStepClick = (stepId: string) => {
+  const handleStepClick = (stepId: StepId) => {
     // Only allow clicking steps if Basics is complete (security validation)
     if (stepId !== 'metadata' && !isMetadataComplete) return;
-    setStep(stepId as any);
+    setStep(stepId);
   };
 
   const isStep2Active = currentStep === 'domains';

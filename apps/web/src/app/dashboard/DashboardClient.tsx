@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import type { User as SupabaseUser } from '@supabase/supabase-js'
 import { supabase } from '@/lib/supabase';
 import { domainsData } from '@/lib/domainsData';
 import { Loader2, CheckCircle2, ChevronLeft, ChevronRight } from 'lucide-react';
@@ -13,6 +14,8 @@ import { PrivacyCalculator } from '@/components/assessment/PrivacyCalculator';
 import { DataUploadForm } from '@/components/assessment/DataUploadForm';
 import { ReviewForm } from '@/components/assessment/ReviewForm';
 import { SuccessView } from '@/components/assessment/SuccessView';
+import type { SubmissionResult } from "@/components/assessment/SuccessView";
+import { calculateCQI } from '@/lib/cqiEngine';
 
 interface FileUpload {
   id: string;
@@ -21,14 +24,17 @@ interface FileUpload {
   status: 'pending' | 'success' | 'failed';
 }
 
-export default function DashboardClient({ initialUser }: { initialUser: any }) {
+type AssessmentStep = 'metadata' | 'domains' | 'prs' | 'upload' | 'review' | 'success';
+type DomainAnswer = { score: number | null; factual_description: string };
+type AnswersMap = { [key: number]: DomainAnswer };
+
+
+export default function DashboardClient({ initialUser }: { initialUser: SupabaseUser | null }) {
   // --- AUTH STATE ---
-  const [user, setUser] = useState<any>(initialUser);
+  const [user, setUser] = useState<SupabaseUser | null>(initialUser);
 
   // --- FORM STATE ---
-  const [step, setStep] = useState<
-    'metadata' | 'domains' | 'prs' | 'upload' | 'review' | 'success'
-  >('metadata');
+  const [step, setStep] = useState<AssessmentStep>('metadata');
   const [activeDomainIdx, setActiveDomainIdx] = useState(0);
 
   // Section A
@@ -41,12 +47,10 @@ export default function DashboardClient({ initialUser }: { initialUser: any }) {
   const [assessorNameAffiliation, setAssessorNameAffiliation] = useState('');
 
   // Section B (Answers)
-  const [answers, setAnswers] = useState<{
-    [key: number]: { score: number; factual_description: string };
-  }>(() => {
-    const initial: any = {};
+  const [answers, setAnswers] = useState<AnswersMap>(() => {
+    const initial: AnswersMap = {};
     for (let i = 1; i <= 15; i++) {
-      initial[i] = { score: 0, factual_description: '' };
+      initial[i] = { score: null, factual_description: '' };
     }
     return initial;
   });
@@ -65,9 +69,9 @@ export default function DashboardClient({ initialUser }: { initialUser: any }) {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [draftSaving, setDraftSaving] = useState(false);
   const [draftStatus, setDraftStatus] = useState('');
-  const [submissionResult, setSubmissionResult] = useState<any>(null);
+  const [submissionResult, setSubmissionResult] = useState<SubmissionResult | null>(null);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const isFormLoaded = useRef(false);
-  const isLoggingOut = useRef(false);
 
   // --- SUPABASE AUTH STATE LISTENER ---
   useEffect(() => {
@@ -86,7 +90,8 @@ export default function DashboardClient({ initialUser }: { initialUser: any }) {
       const persistedStep = localStorage.getItem('midas_step');
       const persistedActiveDomain = localStorage.getItem('midas_active_domain');
       if (persistedStep) {
-        setStep(persistedStep as any);
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- one-time restore of persisted navigation state on mount
+        setStep(persistedStep as AssessmentStep);
       }
       if (persistedActiveDomain) {
         setActiveDomainIdx(parseInt(persistedActiveDomain, 10));
@@ -140,7 +145,7 @@ export default function DashboardClient({ initialUser }: { initialUser: any }) {
               setSubmittingPiCustodian(data.submitting_pi_custodian || '');
               setDateOfAssessment(data.date_of_assessment || new Date().toISOString().split('T')[0]);
               setAssessorNameAffiliation(data.assessor_name_affiliation || '');
-              setAnswers(data.answers || answers);
+              setAnswers((prev) => data.answers || prev);
               setDomain11Na(data.domain_11_na || false);
               setIdentificationRisk(data.identification_risk ?? 15);
               setSensitivityMultiplier(data.sensitivity_multiplier ?? 1.5);
@@ -280,7 +285,7 @@ export default function DashboardClient({ initialUser }: { initialUser: any }) {
 
   // --- LOGOUT ---
   const handleLogout = async () => {
-    isLoggingOut.current = true;
+    setIsLoggingOut(true);
     localStorage.removeItem('midas_step');
     localStorage.removeItem('midas_active_domain');
     try {
@@ -378,6 +383,12 @@ export default function DashboardClient({ initialUser }: { initialUser: any }) {
   // --- FINAL FORM SUBMISSION ---
   const handleSubmitForm = async () => {
     if (!user) return;
+
+    if (!isAllDomainsReviewed()) {
+      alert("All domains must be reviewed before submission");
+      return;
+    }
+
     setIsSubmitting(true);
 
     const {
@@ -397,16 +408,34 @@ export default function DashboardClient({ initialUser }: { initialUser: any }) {
       submitting_pi_custodian: submittingPiCustodian,
       date_of_assessment: dateOfAssessment,
       assessor_name_affiliation: assessorNameAffiliation,
+
+      // ✅ USER ANSWERS
       answers: answersList,
       domain_11_na: domain11Na,
+
+      // ✅ NODAL FLAGS (ADD THESE)
+      reviewed_by_nodal: true,
+      approval_status: "approved", // or "rejected"
+
+      // ✅ CQI CALCULATION (IMPORTANT)
+      cqi_score: calculateCQI(answers, domain11Na).cqi,
+      cqi_grade: calculateCQI(answers, domain11Na).grade,
+
       identification_risk: identificationRisk,
       sensitivity_multiplier: sensitivityMultiplier,
+
       dataset_type: datasetType,
       dataset_link: datasetType === 'unstructured' ? datasetLink : null,
+
       uploaded_file_ids:
         datasetType === 'structured'
-          ? uploadedFiles.filter((f) => f.status === 'success').map((f) => f.id)
+          ? uploadedFiles
+              .filter((f) => f.status === 'success')
+              .map((f) => f.id)
           : [],
+
+      // ✅ CERTIFICATE TRIGGER
+      generate_certificate: true,
     };
 
     try {
@@ -424,12 +453,17 @@ export default function DashboardClient({ initialUser }: { initialUser: any }) {
         throw new Error(errData.detail || 'Failed to submit form.');
       }
 
-      const data = await res.json();
+      const data: SubmissionResult = await res.json();
       // Clear navigation state (Fix #8)
       localStorage.removeItem('midas_step');
       localStorage.removeItem('midas_active_domain');
       setSubmissionResult(data);
       setStep('success');
+      // Some backends may return certificate_url; avoid TS error by accessing as any
+      const certUrl = (data as any)?.certificate_url ?? (data as any)?.certificateUrl;
+      if (certUrl) {
+        window.open(certUrl, '_blank');
+      }
     } catch (err: any) {
       alert(`Submission Error: ${err.message}`);
     } finally {
@@ -449,21 +483,33 @@ export default function DashboardClient({ initialUser }: { initialUser: any }) {
 
   const isDomainAnswered = (id: number) => {
     if (domain11Na && id === 11) return true;
-    return answers[id]?.factual_description.trim() !== '';
+
+    return answers[id]?.score !== null;
   };
 
-  const isAllDomainsComplete = () => {
-    for (let i = 1; i <= 15; i++) {
-      if (!isDomainAnswered(i)) return false;
+  const isCurrentDomainAnswered = () => {
+    const domId = activeDomainIdx + 1;
+
+    if (domId === 11 && domain11Na) return true;
+
+    return answers[domId]?.score !== null;
+  };
+
+  // Check that all domains have been reviewed/answered
+  const isAllDomainsReviewed = () => {
+    for (let id = 1; id <= 15; id++) {
+      if (id === 11 && domain11Na) continue;
+      if (answers[id]?.score === null) return false;
     }
     return true;
   };
 
   const isSectionDComplete = () => {
-    if (datasetType === 'unstructured') {
-      return datasetLink.trim() !== '';
+    if (datasetType === "unstructured") {
+      return true;
     }
-    return uploadedFiles.length > 0 && uploadedFiles.some((f) => f.status === 'success');
+
+    return true;
   };
 
   // Manual trigger save draft
@@ -558,7 +604,7 @@ export default function DashboardClient({ initialUser }: { initialUser: any }) {
     setAssessorNameAffiliation('');
     const initial: any = {};
     for (let i = 1; i <= 15; i++) {
-      initial[i] = { score: 0, factual_description: '' };
+      initial[i] = { score: null, factual_description: '' };
     }
     setAnswers(initial);
     setDomain11Na(false);
@@ -583,7 +629,7 @@ export default function DashboardClient({ initialUser }: { initialUser: any }) {
 
   // Graceful fallback if session is lost client-side (middleware already protects the route)
   if (!user) {
-    if (isLoggingOut.current) return null;
+    if (isLoggingOut) return null;
     return (
       <div className="flex-1 flex flex-col items-center justify-center bg-portal text-brand-navy min-h-screen">
         <Loader2 className="w-10 h-10 animate-spin text-brand-blue mb-4" />
@@ -606,7 +652,7 @@ export default function DashboardClient({ initialUser }: { initialUser: any }) {
                 datasetTitle={datasetTitle}
                 versionDoiHandle={versionDoiHandle}
                 submittingPiCustodian={submittingPiCustodian}
-                submissionResult={submissionResult}
+                submissionResult={submissionResult!}
                 onReset={handleResetForm}
               />
             </div>
@@ -618,7 +664,7 @@ export default function DashboardClient({ initialUser }: { initialUser: any }) {
                   currentStep={step}
                   setStep={setStep}
                   isMetadataComplete={isSectionAComplete()}
-                  isDomainsComplete={isAllDomainsComplete()}
+                  isDomainsComplete={isAllDomainsReviewed()}
                   isPrsComplete={true}
                   isUploadComplete={isSectionDComplete()}
                   activeDomainIdx={activeDomainIdx}
@@ -683,7 +729,15 @@ export default function DashboardClient({ initialUser }: { initialUser: any }) {
                     submittingPiCustodian={submittingPiCustodian}
                     assessorNameAffiliation={assessorNameAffiliation}
                     domain11Na={domain11Na}
-                    answers={answers}
+                    answers={Object.fromEntries(
+                      Object.entries(answers).map(([k, v]) => [
+                        Number(k),
+                        {
+                          score: v.score ?? 0,
+                          factual_description: v.factual_description || '',
+                        },
+                      ])
+                    )}
                     identificationRisk={identificationRisk}
                     sensitivityMultiplier={sensitivityMultiplier}
                     datasetType={datasetType}
@@ -738,7 +792,7 @@ export default function DashboardClient({ initialUser }: { initialUser: any }) {
                     <button
                       type="button"
                       onClick={handleSaveDraftClick}
-                      disabled={draftSaving}
+                      disabled={!isSectionAComplete()}
                       className="px-5 py-2.5 border border-brand-border hover:border-brand-slate bg-white text-brand-navy font-semibold text-sm rounded-full transition-all cursor-pointer shadow-2xs hover:-translate-y-[2px] disabled:opacity-50 disabled:hover:translate-y-0"
                     >
                       Save Draft
@@ -751,9 +805,8 @@ export default function DashboardClient({ initialUser }: { initialUser: any }) {
                       onClick={handleSubmitForm}
                       disabled={
                         isSubmitting ||
-                        !isSectionAComplete() ||
-                        !isAllDomainsComplete() ||
-                        !isSectionDComplete()
+                        !isAllDomainsReviewed() ||
+                        (domain11Na === false && answers[11]?.score === null)
                       }
                       className="px-6 py-2.5 bg-brand-blue hover:bg-brand-blue-hover disabled:bg-brand-bg-end disabled:text-brand-slate text-white font-semibold text-sm rounded-full transition-all flex items-center justify-center gap-2 shadow-md shadow-brand-blue/10 cursor-pointer hover:-translate-y-[2px] disabled:cursor-not-allowed disabled:shadow-none disabled:hover:translate-y-0"
                     >
@@ -774,9 +827,7 @@ export default function DashboardClient({ initialUser }: { initialUser: any }) {
                         step === 'metadata'
                           ? !isSectionAComplete()
                           : step === 'domains'
-                          ? !(domainsData[activeDomainIdx].id === 11 && domain11Na) &&
-                            answers[domainsData[activeDomainIdx].id].factual_description.trim() ===
-                              ''
+                          ? !isCurrentDomainAnswered()
                           : step === 'upload'
                           ? !isSectionDComplete()
                           : false

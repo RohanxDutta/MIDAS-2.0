@@ -24,7 +24,7 @@ export const supabase = createBrowserClient(
         }
         document.cookie = cookieString;
       },
-      remove(name, options) {
+      remove(name) {
         if (typeof document === 'undefined') return;
         let cookieString = `${name}=; path=/; SameSite=Lax; Max-Age=0;`;
         if (isProd) {

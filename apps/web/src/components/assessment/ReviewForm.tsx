@@ -5,7 +5,6 @@ import {
   Upload,
   Link2,
   Lock,
-  ChevronRight,
 } from 'lucide-react';
 
 interface FileUpload {
@@ -42,7 +41,6 @@ export function ReviewForm({
   datasetLink,
   uploadedFiles,
 }: ReviewFormProps) {
-  const cqiMaxScore = domain11Na ? 56 : 60;
   const answeredDomainsCount = Object.keys(answers).filter((key) => {
     const id = parseInt(key);
     if (domain11Na && id === 11) return true;

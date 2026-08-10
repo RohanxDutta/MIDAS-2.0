@@ -243,6 +243,7 @@ export function LandingPage() {
 
 <section className="cta-section">
     <div className="cta-inner">
+        {/* eslint-disable-next-line @next/next/no-img-element -- local SVG logo; next/image blocks SVGs */}
         <img className="cta-logo" src="/logo.svg" alt="ICMR" />
         <h2>Ready to review or continue your assessment?</h2>
         <p>If you are an invited expert, you can log in and continue the validation workflow. If you are new to MIDAS, start with the Delphi Proposal to read the full review document and scoring context.</p>

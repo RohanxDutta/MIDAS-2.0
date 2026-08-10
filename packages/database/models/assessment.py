@@ -1,7 +1,11 @@
 from datetime import date, datetime
-from typing import Optional, List
+from typing import Optional, List, TYPE_CHECKING
 from uuid import UUID, uuid4
 from sqlmodel import SQLModel, Field, Relationship
+
+if TYPE_CHECKING:
+    from .answer import AssessmentAnswer
+    from .file import AssessmentFile
 
 class Assessment(SQLModel, table=True):
     __tablename__ = "assessments"
@@ -28,7 +32,12 @@ class Assessment(SQLModel, table=True):
     dataset_link: Optional[str] = Field(default=None) # Used for unstructured URL
 
     # Status & Audit
-    status: str = Field(default="draft") # "draft" or "submitted"
+    status: str = Field(default="draft")  # draft, submitted, under_review, approved, revision_required
+
+    # Certificate Details
+    certificate_id: Optional[str] = Field(default=None)
+    certificate_issued_at: Optional[datetime] = Field(default=None)
+
     created_at: datetime = Field(default_factory=datetime.utcnow)
 
     # Relationships

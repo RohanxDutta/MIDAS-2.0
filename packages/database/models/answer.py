@@ -2,6 +2,8 @@ from typing import Optional
 from uuid import UUID, uuid4
 from sqlmodel import SQLModel, Field, Relationship
 
+from models.assessment import Assessment
+
 class AssessmentAnswer(SQLModel, table=True):
     __tablename__ = "assessment_answers"
 

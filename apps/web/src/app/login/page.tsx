@@ -25,6 +25,7 @@ export default function Login() {
     if (typeof window !== 'undefined') {
       const params = new URLSearchParams(window.location.search);
       if (params.get('error') === 'session_expired') {
+        // eslint-disable-next-line react-hooks/set-state-in-effect -- intentional: reflect URL param into form error on mount, avoids hydration mismatch
         setError('Your session has expired or is unauthorized. Please sign in again.');
       }
     }
@@ -66,13 +67,14 @@ export default function Login() {
       setLockoutTimeLeft(0);
 
       router.refresh();
-      router.push('/dashboard');
-    } catch (err: any) {
+      router.push('/');
+    } catch (err) {
       console.error('Login error details:', err);
       const newAttempts = failedAttempts + 1;
       setFailedAttempts(newAttempts);
 
-      let userFriendlyMsg = err.message || 'An unexpected error occurred.';
+      const rawMessage = err instanceof Error ? err.message : String(err);
+      let userFriendlyMsg = rawMessage || 'An unexpected error occurred.';
       if (newAttempts >= 5) {
         setLockoutTimeLeft(30);
         userFriendlyMsg = 'Too many failed login attempts. Account temporarily locked for 30 seconds.';
